@@ -1,0 +1,17 @@
+{
+  "name": "Contratos Kamaga",
+  "short_name": "Kamaga",
+  "description": "Contratos de alquiler de Kamaga Bike",
+  "lang": "es",
+  "start_url": "/contratos-web/",
+  "scope": "/contratos-web/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1F2937",
+  "theme_color": "#1F2937",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
