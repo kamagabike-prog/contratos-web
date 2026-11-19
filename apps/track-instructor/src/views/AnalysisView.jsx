@@ -6,6 +6,8 @@ import TrackMap from '../components/TrackMap.jsx';
 import TraceChart from '../components/TraceChart.jsx';
 import ExportImportPanel, { ImportButton } from '../components/ExportImportPanel.jsx';
 import DeviceDownloadPanel from '../components/DeviceDownloadPanel.jsx';
+import UsagePanel from '../components/UsagePanel.jsx';
+import { formatDuration, sessionUsage } from '../storage/usage.js';
 import { distanceTime, timeDelta } from '../telemetry/delta.js';
 import { getCircuit, getTrackModel } from '../data/circuits.js';
 import { analyzeLap } from '../telemetry/analysis.js';
@@ -112,7 +114,7 @@ export default function AnalysisView({ sessionId, onSelectSession, onGoLive }) {
               const c = getCircuit(s.circuitId);
               return (
                 <option key={s.id} value={s.id}>
-                  {c?.short ?? s.circuitId} · {formatDate(s.createdAt)} · {s.laps.length} v{s.source === 'sim' ? ' · SIM' : ''}
+                  {c?.short ?? s.circuitId} · {formatDate(s.createdAt)} · {s.laps.length} v · {formatDuration(sessionUsage(s).durationMs)}{s.source === 'sim' ? ' · SIM' : ''}
                 </option>
               );
             })}
@@ -189,6 +191,7 @@ export default function AnalysisView({ sessionId, onSelectSession, onGoLive }) {
           <ExportImportPanel session={session} circuit={circuit} model={model} lap={lap} onImported={onImported} />
         )}
         <DeviceDownloadPanel onImported={onImported} />
+        <UsagePanel sessions={sessions} />
 
         <button
           type="button"

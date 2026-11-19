@@ -87,6 +87,14 @@ está disponible: los navegadores no pueden abrir conexiones TCP/UDP.
 `npm run nmea-sim -- --circuit jerez --hz 10` emite vueltas simuladas por TCP en el puerto 10110;
 conecta la app a la IP del ordenador. Con `--udp <ip del iPhone>` las envía por UDP.
 
+## Tiempo de uso
+
+«3. Análisis → Tiempo de uso» suma las horas en pista (solo en movimiento, a más de 10 km/h), las
+vueltas y los kilómetros de las sesiones reales, con desglose por circuito. Las simuladas no cuentan.
+Incluye contadores reiniciables (neumáticos, aceite y los que añadas) para saber el uso desde el
+último cambio. Cada sesión guarda su `durationMs` (tiempo en movimiento, vueltas de salida y entrada
+incluidas) y su `distanceM`; en sesiones antiguas se calculan a partir de las vueltas.
+
 ## Descargar sesiones del GPS de la moto (WiFi)
 
 «3. Análisis → Descargar del GPS (WiFi)» trae las sesiones que ha grabado un GPS o data-logger

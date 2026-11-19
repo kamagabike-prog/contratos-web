@@ -89,6 +89,8 @@ export default function LiveView({ circuit, onFinished }) {
       createdAt: startedAt.current,
       source: src?.kind ?? mode,
       gpsHz: src?.kind === 'sim' ? simHz : null,
+      durationMs: Math.round(timer.movingMs),
+      distanceM: Math.round(timer.distanceM),
       laps: timer.laps.map(packLap),
     };
     try {

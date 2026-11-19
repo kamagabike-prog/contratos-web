@@ -176,6 +176,8 @@ export function sessionFromFixes(fixes, { circuit = detectCircuit(fixes), model,
     source,
     gpsHz: medianDt ? Math.round((1000 / medianDt) * 10) / 10 : null,
     ...(name ? { name } : {}),
+    durationMs: Math.round(timer.movingMs),
+    distanceM: Math.round(timer.distanceM),
     laps: timer.laps.map(packLap),
   };
 }

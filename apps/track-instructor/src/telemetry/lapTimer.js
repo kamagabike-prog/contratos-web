@@ -37,6 +37,8 @@
 
 import { segmentIntersection, dot, sub, dist } from '../geo/geometry.js';
 
+const MOVING_MS = 10 / 3.6; // por debajo de 10 km/h se considera parado
+
 const GAP_MS = 2000; // tramo entre fixes considerado "hueco" de cobertura
 const GAP_EXTEND_M = 25; // prolongación de las líneas en tramos con hueco
 const STILL_SPEED = 1.5; // m/s: por debajo, la moto se considera parada
@@ -82,6 +84,10 @@ export class LapTimer {
     this.jumpRejects = 0; // saltos imposibles consecutivos descartados
     this.lastRejected = null;
     this.rejected = 0; // total de fixes descartados (diagnóstico)
+    // Uso: tiempo en movimiento y distancia recorrida en toda la sesión
+    // (vueltas de salida/entrada incluidas; parado en boxes no cuenta).
+    this.movingMs = 0;
+    this.distanceM = 0;
   }
 
   /**
@@ -177,6 +183,7 @@ export class LapTimer {
     this.lastRejected = null;
 
     const closed = timeCrossings ? this.processSegment(this.prev, p) : null;
+    if (timeCrossings) this.accumulateUsage(this.prev, p);
 
     // 3) Rearme de la meta al alejarse de ella.
     if (!this.armed && dist(p, this.finishMid) > this.armDistanceM) this.armed = true;
@@ -184,6 +191,17 @@ export class LapTimer {
     this.store(p);
     this.prev = p;
     return closed;
+  }
+
+  /** Suma tiempo y distancia del tramo a→b si la moto se movía (> 10 km/h) y no hubo hueco largo. */
+  accumulateUsage(a, b) {
+    const dt = b.t - a.t;
+    if (!(dt > 0) || dt > 5000) return;
+    const d = dist(a, b);
+    const v = b.v ?? a.v ?? d / (dt / 1000);
+    if (v < MOVING_MS) return;
+    this.movingMs += dt;
+    this.distanceM += d;
   }
 
   isJump(a, b) {

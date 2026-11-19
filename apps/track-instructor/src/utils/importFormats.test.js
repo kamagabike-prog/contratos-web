@@ -125,3 +125,38 @@ describe('descarga del GPS por WiFi', () => {
     await expect(tcpDump({ host: '1.2.3.4', port: 1, idleMs: 20, maxMs: 50 }, plugin)).rejects.toThrow(/no ha enviado datos/);
   });
 });
+
+describe('tiempo de uso', async () => {
+  const { usageTotals, sessionUsage, formatDuration, formatKm } = await import('../storage/usage.js');
+  it('la sesión guarda tiempo en movimiento y distancia, y las simuladas no cuentan', () => {
+    const real = sessionFromText('tanda.nmea', toNMEA(fixes), { source: 'device' });
+    const lapsMs = real.laps.reduce((a, l) => a + l.timeMs, 0);
+    expect(real.durationMs).toBeGreaterThan(lapsMs); // incluye vuelta de salida y entrada
+    expect(real.distanceM).toBeGreaterThan(circuit.lengthM * real.laps.length);
+    const sim = { ...real, id: 'x', source: 'sim' };
+    const t = usageTotals([real, sim]);
+    expect(t.sessions).toBe(1);
+    expect(t.durationMs).toBe(real.durationMs);
+    expect(t.byCircuit.cheste.laps).toBe(real.laps.length);
+    expect(usageTotals([real], { since: real.createdAt + 1 }).sessions).toBe(0);
+  });
+  it('sesiones antiguas sin duración: suma de vueltas y distancia de los puntos', () => {
+    const old = sessionFromText('tanda.nmea', toNMEA(fixes));
+    delete old.durationMs;
+    delete old.distanceM;
+    const u = sessionUsage(old);
+    expect(u.durationMs).toBe(old.laps.reduce((a, l) => a + l.timeMs, 0));
+    expect(u.distanceM).toBeGreaterThan(circuit.lengthM * old.laps.length * 0.97);
+  });
+  it('parado en boxes no suma tiempo', () => {
+    const still = Array.from({ length: 600 }, (_, i) => ({ ...fixes[0], t: fixes[0].t - 600000 + i * 1000, speed: 0 }));
+    const s = sessionFromText('tanda.nmea', toNMEA([...still, ...fixes]));
+    const moving = sessionFromText('tanda.nmea', toNMEA(fixes));
+    expect(Math.abs(s.durationMs - moving.durationMs)).toBeLessThan(2000);
+  });
+  it('formato', () => {
+    expect(formatDuration(3 * 3600000 + 25 * 60000)).toBe('3 h 25 min');
+    expect(formatDuration(45 * 60000)).toBe('45 min');
+    expect(formatKm(12345)).toBe('12,3 km');
+  });
+});
