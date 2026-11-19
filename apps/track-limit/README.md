@@ -3,7 +3,7 @@
 PWA (React + Vite + Tailwind) para comparar tu trazada GPS (**rojo `#ef4444`**) con la
 trazada ideal (**verde `#22c55e`**) en circuitos de velocidad de España.
 
-Publicada en GitHub Pages en `/contratos-web/racing/` (el build se escribe en `../../racing`).
+Publicada en GitHub Pages en `/contratos-web/track-limit/` (el build se escribe en `../../track-limit`).
 
 ## Uso
 
@@ -11,7 +11,7 @@ Publicada en GitHub Pages en `/contratos-web/racing/` (el build se escribe en `.
 npm install
 npm run dev          # desarrollo (http://localhost:5173)
 npm test             # tests del motor (meta, simulador, métricas)
-npm run build        # genera ../../racing
+npm run build        # genera ../../track-limit
 npm run gen:circuits # regenera src/data/trackGeometry.js
 ```
 
