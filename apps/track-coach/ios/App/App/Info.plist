@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>Track Limit</string>
+	<string>Track Coach</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -25,9 +25,9 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Track Limit usa el GPS para cronometrar tus vueltas y dibujar tu trazada en el circuito.</string>
+	<string>Track Coach usa el GPS para cronometrar tus vueltas y dibujar tu trazada en el circuito.</string>
 	<key>NSMotionUsageDescription</key>
-	<string>Track Limit usa el giroscopio para medir el ángulo de inclinación de la moto.</string>
+	<string>Track Coach usa el giroscopio para medir el ángulo de inclinación de la moto.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

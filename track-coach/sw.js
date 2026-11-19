@@ -1,5 +1,5 @@
 // Service worker: cache-first de los recursos de la app para uso offline en el circuito.
-const CACHE = 'track-limit-v2';
+const CACHE = 'track-coach-v3';
 self.addEventListener('install', (e) => { self.skipWaiting(); });
 self.addEventListener('activate', (e) => {
   e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()));

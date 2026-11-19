@@ -1,6 +1,6 @@
 {
-  "name": "Track Limit – Telemetría de trazada",
-  "short_name": "Track Limit",
+  "name": "Track Coach – Telemetría de trazada",
+  "short_name": "Track Coach",
   "description": "Compara tu trazada GPS con la trazada ideal en circuitos de España",
   "lang": "es",
   "start_url": "./",

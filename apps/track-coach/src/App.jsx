@@ -43,7 +43,7 @@ export default function App() {
             <path d="M5 16c-.5-4 2-8 7-8.5" fill="none" stroke="#ef4444" strokeWidth="2" />
           </svg>
           <span className="font-bold tracking-tight">
-            Track<span className="text-ideal">Limit</span>
+            Track<span className="text-ideal">Coach</span>
           </span>
         </div>
         <span className="font-mono text-xs text-zinc-400">{circuit.short}</span>

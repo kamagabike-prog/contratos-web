@@ -1,4 +1,4 @@
-# Compila la app iOS de Track Limit (Capacitor) y la sube a TestFlight.
+# Compila la app iOS de Track Coach (Capacitor) y la sube a TestFlight.
 #
 # Secretos necesarios (Settings → Secrets and variables → Actions):
 #   APPLE_TEAM_ID   Team ID de Apple Developer (10 caracteres)
@@ -8,18 +8,18 @@
 # La clave debe tener rol "Admin" para que Xcode gestione los certificados
 # y perfiles de firma automáticamente en la nube.
 
-name: Track Limit → TestFlight
+name: Track Coach → TestFlight
 
 on:
   workflow_dispatch:
   push:
     branches: [main]
     paths:
-      - 'apps/track-limit/**'
-      - '.github/workflows/track-limit-testflight.yml'
+      - 'apps/track-coach/**'
+      - '.github/workflows/track-coach-testflight.yml'
 
 concurrency:
-  group: track-limit-testflight
+  group: track-coach-testflight
   cancel-in-progress: false
 
 jobs:
@@ -28,7 +28,7 @@ jobs:
     timeout-minutes: 45
     defaults:
       run:
-        working-directory: apps/track-limit
+        working-directory: apps/track-coach
     env:
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
@@ -58,7 +58,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: apps/track-limit/package-lock.json
+          cache-dependency-path: apps/track-coach/package-lock.json
 
       - name: Seleccionar Xcode 16
         if: steps.secrets.outputs.ok == 'true'

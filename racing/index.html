@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Track Limit</title>
-<meta http-equiv="refresh" content="0; url=../track-limit/">
-<link rel="canonical" href="../track-limit/">
+<title>Track Coach</title>
+<meta http-equiv="refresh" content="0; url=../track-coach/">
+<link rel="canonical" href="../track-coach/">
 <style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#09090b;color:#f4f4f5;font:16px system-ui,sans-serif}a{color:#22c55e}</style>
 </head>
 <body>
-<p>Track Limit se ha movido a <a href="../track-limit/">su nueva dirección</a>.</p>
+<p>Track Coach se ha movido a <a href="../track-coach/">su nueva dirección</a>.</p>
 <script>
 // Quita el service worker y la caché de la dirección antigua y redirige.
 (async () => {
@@ -17,9 +17,9 @@
     const regs = await navigator.serviceWorker?.getRegistrations?.() ?? [];
     await Promise.all(regs.filter((r) => r.scope.includes('/racing/')).map((r) => r.unregister()));
     const keys = await caches?.keys?.() ?? [];
-    await Promise.all(keys.filter((k) => k.startsWith('racing-line')).map((k) => caches.delete(k)));
+    await Promise.all(keys.filter((k) => k.startsWith('racing-line') || k.startsWith('track-limit')).map((k) => caches.delete(k)));
   } catch {}
-  location.replace('../track-limit/' + location.hash);
+  location.replace('../track-coach/' + location.hash);
 })();
 </script>
 </body>
