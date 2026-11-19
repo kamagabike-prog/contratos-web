@@ -1,4 +1,4 @@
-# Racing Line — telemetría de trazada para moto en circuito
+# Track Limit — telemetría de trazada para moto en circuito
 
 PWA (React + Vite + Tailwind) para comparar tu trazada GPS (**rojo `#ef4444`**) con la
 trazada ideal (**verde `#22c55e`**) en circuitos de velocidad de España.
