@@ -23,10 +23,10 @@ const isoTime = (t) => new Date(Math.round(t)).toISOString();
  * GPX 1.1 a partir de fixes {lat, lon, t, speed?, lean?}. La velocidad (m/s) y
  * la inclinación (°) van en <extensions>.
  */
-export function fixesToGPX(fixes, { name = 'Racing Line' } = {}) {
+export function fixesToGPX(fixes, { name = 'Track Limit' } = {}) {
   const lines = [
     '<?xml version="1.0" encoding="UTF-8"?>',
-    '<gpx version="1.1" creator="Racing Line" xmlns="http://www.topografix.com/GPX/1/1">',
+    '<gpx version="1.1" creator="Track Limit" xmlns="http://www.topografix.com/GPX/1/1">',
     `  <metadata><name>${xmlEscape(name)}</name>${fixes.length ? `<time>${isoTime(fixes[0].t)}</time>` : ''}</metadata>`,
     `  <trk><name>${xmlEscape(name)}</name><trkseg>`,
   ];
@@ -219,7 +219,7 @@ export function sessionFromJSON(text) {
     throw new Error('JSON no válido');
   }
   const s = data?.format === SESSION_FORMAT ? data.session : data;
-  if (!s || typeof s !== 'object' || !Array.isArray(s.laps) || !s.circuitId) throw new Error('El JSON no es una sesión de Racing Line');
+  if (!s || typeof s !== 'object' || !Array.isArray(s.laps) || !s.circuitId) throw new Error('El JSON no es una sesión de Track Limit');
   if (!CIRCUITS.some((c) => c.id === s.circuitId)) throw new Error(`Circuito desconocido: ${s.circuitId}`);
   if (!s.laps.length || !s.laps.every((l) => Array.isArray(l.pts) && Number.isFinite(l.timeMs))) throw new Error('La sesión no tiene vueltas válidas');
   return { ...s, id: typeof s.id === 'string' && s.id ? s.id : newId(), createdAt: Number.isFinite(s.createdAt) ? s.createdAt : Date.now() };
@@ -277,10 +277,10 @@ export async function downloadText(filename, text, mime = 'text/plain') {
   return true;
 }
 
-/** Nombre de archivo seguro: racing-jerez-2026-11-19-v3.gpx */
+/** Nombre de archivo seguro: tracklimit-jerez-2026-11-19-v3.gpx */
 export function exportFilename(circuitId, createdAt, suffix, ext) {
   const d = new Date(createdAt);
   const pad = (n) => String(n).padStart(2, '0');
   const date = Number.isFinite(d.getTime()) ? `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}` : 'sesion';
-  return `racing-${circuitId}-${date}${suffix ? `-${suffix}` : ''}.${ext}`.replace(/[^\w.-]+/g, '_');
+  return `tracklimit-${circuitId}-${date}${suffix ? `-${suffix}` : ''}.${ext}`.replace(/[^\w.-]+/g, '_');
 }
