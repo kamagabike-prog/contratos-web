@@ -1,0 +1,10 @@
+{
+  "appId": "com.kamagabike.tracklimit",
+  "appName": "Track Limit",
+  "webDir": "../../track-limit",
+  "backgroundColor": "#09090b",
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#09090b"
+  }
+}

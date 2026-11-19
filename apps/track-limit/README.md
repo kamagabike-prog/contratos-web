@@ -64,3 +64,26 @@ ideal, mapa con zoom/paneo, velocidad, desviación e inclinación).
 
 La trazada ideal es una aproximación de mínima curvatura (exterior–ápice–exterior); no modela
 frenada tardía ni ápices retrasados específicos de moto.
+
+## App iOS y TestFlight
+
+La app iOS envuelve la PWA con [Capacitor](https://capacitorjs.com) (`ios/`, bundle id
+`com.kamagabike.tracklimit`). El GPS usa `navigator.geolocation` dentro de la app y la
+inclinación, el giroscopio (permisos en `ios/App/App/Info.plist`).
+
+El workflow `.github/workflows/track-limit-testflight.yml` compila en un Mac de GitHub Actions,
+firma con firma automática en la nube y sube el build a TestFlight en cada push a `main` que toque
+`apps/track-limit/`, o a mano desde la pestaña Actions («Run workflow»).
+
+Configuración, una sola vez:
+1. En App Store Connect → Apps → «+» → Nueva app: plataforma iOS, nombre «Track Limit» (o el que
+   esté libre), bundle id `com.kamagabike.tracklimit` (regístralo antes en developer.apple.com →
+   Identifiers si no aparece) y un SKU cualquiera.
+2. En App Store Connect → Usuarios y acceso → Integraciones → Claves de API de App Store Connect:
+   genera una clave con rol **Admin** y descarga el `.p8` (solo se puede descargar una vez).
+3. En GitHub → Settings → Secrets and variables → Actions, crea: `APPLE_TEAM_ID`, `ASC_KEY_ID`,
+   `ASC_ISSUER_ID` y `ASC_KEY_P8` (el contenido del `.p8`, tal cual).
+4. Lanza el workflow. El build aparece en TestFlight tras el procesado de Apple; añade testers
+   internos en App Store Connect → TestFlight.
+
+En local (macOS con Xcode): `npm run build && npx cap sync ios && npx cap open ios`.
