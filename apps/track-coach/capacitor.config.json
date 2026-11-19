@@ -1,7 +1,7 @@
 {
-  "appId": "com.kamagabike.tracklimit",
-  "appName": "Track Limit",
-  "webDir": "../../track-limit",
+  "appId": "com.kamagabike.trackcoach",
+  "appName": "Track Coach",
+  "webDir": "../../track-coach",
   "backgroundColor": "#09090b",
   "ios": {
     "contentInset": "never",
