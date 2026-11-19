@@ -24,6 +24,11 @@
 	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Track Instructor se conecta por WiFi a tu receptor GPS externo para recibir su posición en tiempo real.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>

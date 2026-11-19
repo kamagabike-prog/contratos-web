@@ -87,6 +87,21 @@ está disponible: los navegadores no pueden abrir conexiones TCP/UDP.
 `npm run nmea-sim -- --circuit jerez --hz 10` emite vueltas simuladas por TCP en el puerto 10110;
 conecta la app a la IP del ordenador. Con `--udp <ip del iPhone>` las envía por UDP.
 
+## Descargar sesiones del GPS de la moto (WiFi)
+
+«3. Análisis → Descargar del GPS (WiFi)» trae las sesiones que ha grabado un GPS o data-logger
+externo que las comparte por WiFi:
+
+- **Servidor web**: el GPS sirve una página o un JSON con sus archivos (`http://192.168.4.1/`). La app
+  los lista, descargas los que elijas y se cronometran y asignan al circuito automáticamente.
+- **Volcado TCP**: al conectarse a IP:puerto, el GPS envía su registro (NMEA) y la app lo importa.
+- Formatos: GPX, NMEA (.nmea/.log/.txt), VBO (Racelogic), CSV (RaceChrono o genérico con
+  latitud/longitud/tiempo) y sesiones JSON. Los mismos formatos se pueden importar como archivo.
+
+En la app de iPhone las descargas van por la capa nativa (sin las restricciones de CORS del
+navegador). Dispositivos con protocolo propio y cerrado (AiM, Starlane…) no exponen sus datos así:
+exporta el archivo con su programa e impórtalo.
+
 ## App iOS y TestFlight
 
 La app iOS envuelve la PWA con [Capacitor](https://capacitorjs.com) (`ios/`, bundle id
