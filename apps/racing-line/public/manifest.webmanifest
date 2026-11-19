@@ -1,0 +1,13 @@
+{
+  "name": "Racing Line – Telemetría de trazada",
+  "short_name": "Racing Line",
+  "description": "Compara tu trazada GPS con la trazada ideal en circuitos de España",
+  "lang": "es",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0a0c0f",
+  "theme_color": "#0a0c0f",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}
