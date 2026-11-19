@@ -15,7 +15,7 @@ export default function MiniTrack({ model, className = '' }) {
   }, [model]);
   return (
     <svg viewBox={box} className={className} aria-hidden="true">
-      <path d={d} fill="none" stroke="#2b2f36" strokeWidth="7" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
+      <path d={d} fill="none" stroke="#1e293b" strokeWidth="7" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
       <path d={ideal} fill="none" stroke="#22c55e" strokeWidth="1.6" vectorEffect="non-scaling-stroke" />
     </svg>
   );

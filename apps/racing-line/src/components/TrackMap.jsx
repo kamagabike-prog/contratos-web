@@ -1,12 +1,13 @@
 // Mapa SVG del circuito en coordenadas locales (metros) con pan/zoom.
 //
-//  · Asfalto: trazo de la línea central con ancho = ancho real de pista.
-//  · Pianos rojo/blanco en las curvas, línea de meta a cuadros.
+//  · Asfalto (#1e293b): trazo de la línea central con ancho = ancho real de pista.
+//  · Pianos rojo/blanco en las curvas, meta a cuadros y parciales T1/T2.
+//  · La trazada del piloto se suaviza con Catmull-Rom (GPS a 1 Hz).
 //  · Trazada ideal (verde #22c55e) y trazada del piloto (rojo #ef4444).
 //  · Zoom con rueda / pellizco / botones, paneo arrastrando, modo "seguir".
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { bounds } from '../geo/geometry.js';
+import { bounds, smoothTrace } from '../geo/geometry.js';
 
 const toPath = (pts, closed = false) => {
   if (!pts?.length) return '';
@@ -30,6 +31,7 @@ function fitBox(model, aspect) {
 export default function TrackMap({
   model,
   riderPoints = null,
+  smooth = true, // suavizar la trazada roja con Catmull-Rom
   marker = null, // {x,y}
   follow = false,
   showIdeal = true,
@@ -89,10 +91,14 @@ export default function TrackMap({
       kerbsIn: model.kerbs.map((k) => toPath(k.inner)).join(' '),
       kerbsOut: model.kerbs.map((k) => toPath(k.outer)).join(' '),
       finish: toPath(model.finish),
+      sectors: model.sectorLines.slice(0, 2).map((l) => toPath(l)),
     }),
     [model]
   );
-  const riderPath = useMemo(() => toPath(riderPoints || []), [riderPoints]);
+  const riderPath = useMemo(
+    () => toPath(smooth && riderPoints?.length > 2 ? smoothTrace(riderPoints) : riderPoints || []),
+    [riderPoints, smooth]
+  );
 
   // ------------------------------------------------------------------ zoom/pan
   const zoomAt = useCallback(
@@ -180,18 +186,18 @@ export default function TrackMap({
       >
         <defs>
           <pattern id="grid" width="100" height="100" patternUnits="userSpaceOnUse">
-            <path d="M100 0H0V100" fill="none" stroke="#151a20" strokeWidth={1 / pxPerM} />
+            <path d="M100 0H0V100" fill="none" stroke="#18181b" strokeWidth={1 / pxPerM} />
           </pattern>
         </defs>
         <rect x={vb.x - vb.w} y={vb.y - vb.h} width={vb.w * 3} height={vb.h * 3} fill="url(#grid)" />
 
         {/* escapatorias / grava */}
-        <path d={paths.center} fill="none" stroke="#14181d" strokeWidth={model.width + 18} strokeLinejoin="round" />
+        <path d={paths.center} fill="none" stroke="#111318" strokeWidth={model.width + 18} strokeLinejoin="round" />
         {/* asfalto */}
-        <path d={paths.center} fill="none" stroke="#2b2f36" strokeWidth={model.width} strokeLinejoin="round" />
+        <path d={paths.center} fill="none" stroke="#1e293b" strokeWidth={model.width} strokeLinejoin="round" />
         {/* líneas blancas de borde */}
-        <path d={paths.left} fill="none" stroke="#a1a1aa" strokeOpacity="0.55" strokeWidth={Math.max(0.25, 0.8 / pxPerM)} />
-        <path d={paths.right} fill="none" stroke="#a1a1aa" strokeOpacity="0.55" strokeWidth={Math.max(0.25, 0.8 / pxPerM)} />
+        <path d={paths.left} fill="none" stroke="#cbd5e1" strokeOpacity="0.6" strokeWidth={Math.max(0.25, 0.8 / pxPerM)} />
+        <path d={paths.right} fill="none" stroke="#cbd5e1" strokeOpacity="0.6" strokeWidth={Math.max(0.25, 0.8 / pxPerM)} />
         {/* pianos rojo/blanco */}
         <g strokeWidth={Math.max(1.2, 2.2 / pxPerM)} fill="none" strokeLinejoin="round">
           <path d={paths.kerbsIn} stroke="#f4f4f5" />
@@ -202,6 +208,22 @@ export default function TrackMap({
         {/* meta a cuadros */}
         <path d={paths.finish} stroke="#fafafa" strokeWidth={Math.max(2, 4 / pxPerM)} />
         <path d={paths.finish} stroke="#0a0a0a" strokeWidth={Math.max(2, 4 / pxPerM)} strokeDasharray="1.5 1.5" />
+
+        {/* parciales T1 / T2 */}
+        {paths.sectors.map((d, i) => (
+          <g key={i}>
+            <path d={d} stroke="#facc15" strokeWidth={Math.max(1.2, 2.5 / pxPerM)} strokeDasharray={`${3 / pxPerM} ${2 / pxPerM}`} />
+            <text
+              x={model.sectorLines[i][0].x}
+              y={-model.sectorLines[i][0].y}
+              fontSize={11 / pxPerM}
+              dx={4 / pxPerM}
+              className="fill-yellow-300 font-mono font-bold"
+            >
+              T{i + 1}
+            </text>
+          </g>
+        ))}
 
         {/* trazada ideal */}
         {showIdeal && (
@@ -231,7 +253,7 @@ export default function TrackMap({
         {marker && (
           <g>
             <circle cx={marker.x} cy={-marker.y} r={markerR * 1.8} fill="#ef4444" fillOpacity="0.2" />
-            <circle cx={marker.x} cy={-marker.y} r={markerR} fill="#ef4444" stroke="#0a0c0f" strokeWidth={2 / pxPerM} />
+            <circle cx={marker.x} cy={-marker.y} r={markerR} fill="#ef4444" stroke="#09090b" strokeWidth={2 / pxPerM} />
           </g>
         )}
       </svg>

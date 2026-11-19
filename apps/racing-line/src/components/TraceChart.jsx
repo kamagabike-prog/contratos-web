@@ -109,7 +109,7 @@ export default function TraceChart({
           {hd && (
             <g>
               <line x1={sx(hd.s)} x2={sx(hd.s)} y1={0} y2={ih} stroke="#a1a1aa" strokeDasharray="3 3" />
-              <circle cx={sx(hd.s)} cy={sy(value(hd))} r="4.5" fill={color} stroke="#0a0c0f" strokeWidth="2" />
+              <circle cx={sx(hd.s)} cy={sy(value(hd))} r="4.5" fill={color} stroke="#09090b" strokeWidth="2" />
             </g>
           )}
         </g>
@@ -121,5 +121,6 @@ export default function TraceChart({
 function niceCeil(v) {
   const p = Math.pow(10, Math.floor(Math.log10(v)));
   const n = v / p;
-  return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10) * p;
+  const step = [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10].find((x) => n <= x);
+  return step * p;
 }

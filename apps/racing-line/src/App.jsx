@@ -5,9 +5,9 @@ import AnalysisView from './views/AnalysisView.jsx';
 import { getCircuit, hasGeometry } from './data/circuits.js';
 
 const TABS = [
-  { id: 'circuits', label: 'Circuito', icon: '◰' },
-  { id: 'live', label: 'Grabación', icon: '●' },
-  { id: 'analysis', label: 'Análisis', icon: '◫' },
+  { id: 'circuits', label: '1. Circuitos', icon: '◰' },
+  { id: 'live', label: '2. Pista', icon: '●' },
+  { id: 'analysis', label: '3. Análisis', icon: '◫' },
 ];
 
 const loadPref = (k, d) => {
@@ -36,7 +36,7 @@ export default function App() {
 
   return (
     <div className="flex h-full flex-col">
-      <header className="flex items-center justify-between border-b border-edge bg-[#0a0c0f]/95 px-4 pb-2 pt-[calc(env(safe-area-inset-top)+0.5rem)]">
+      <header className="flex items-center justify-between border-b border-edge bg-[#09090b]/95 px-4 pb-2 pt-[calc(env(safe-area-inset-top)+0.5rem)]">
         <div className="flex items-center gap-2">
           <svg viewBox="0 0 24 24" className="h-6 w-6" aria-hidden="true">
             <path d="M4 17c-1-5 2-10 8-10s8 3 7 6-4 3-5 1-3-1-3 2-5 4-7 1z" fill="none" stroke="#22c55e" strokeWidth="2" />
@@ -75,7 +75,7 @@ export default function App() {
         )}
       </main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-edge bg-[#0a0c0f]/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
+      <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-edge bg-[#09090b]/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
         <div className="mx-auto grid max-w-md grid-cols-3">
           {TABS.map((t) => (
             <button

@@ -27,11 +27,16 @@ export default function AnalysisView({ sessionId, onSelectSession, onGoLive }) {
     if (!session || !model) return [];
     return session.laps.map((l) => {
       const lap = unpackLap(l);
-      return { ...lap, stats: analyzeLap(lap.points, model.racingLine) };
+      return { ...lap, stats: analyzeLap(lap.points, model.racingLine, model.proj) };
     });
   }, [session, model]);
 
   const best = laps.reduce((b, l) => (!b || l.timeMs < b.timeMs ? l : b), null);
+  const bestSectors = [0, 1, 2].map((i) => {
+    const vals = laps.map((l) => l.sectors?.[i]).filter((v) => v != null);
+    return vals.length ? Math.min(...vals) : null;
+  });
+  const hasLean = laps.some((l) => l.stats.maxLeanDeg != null);
 
   // Por defecto, la vuelta rápida
   useEffect(() => {
@@ -40,7 +45,7 @@ export default function AnalysisView({ sessionId, onSelectSession, onGoLive }) {
   }, [session?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const lap = laps.find((l) => l.number === lapNo) ?? best;
-  const marker = lap && hover != null ? lap.points[lap.stats.trace[hover]?.i] : null;
+  const marker = lap && hover != null ? lap.stats.trace[hover] : null;
 
   if (sessions === null) return <div className="p-6 text-zinc-500">Cargando…</div>;
 
@@ -90,8 +95,9 @@ export default function AnalysisView({ sessionId, onSelectSession, onGoLive }) {
               <tr className="text-left text-[10px] uppercase tracking-wider text-zinc-500">
                 <th className="px-3 py-1.5 font-medium">V</th>
                 <th className="py-1.5 font-medium">Tiempo</th>
-                <th className="py-1.5 font-medium">Δ</th>
-                <th className="py-1.5 pr-3 text-right font-medium">Desv.</th>
+                <th className="py-1.5 text-right font-medium">T1</th>
+                <th className="py-1.5 text-right font-medium">T2</th>
+                <th className="py-1.5 pr-3 text-right font-medium">T3</th>
               </tr>
             </thead>
             <tbody>
@@ -110,17 +116,35 @@ export default function AnalysisView({ sessionId, onSelectSession, onGoLive }) {
                     <td className="px-3 py-2.5 text-zinc-400">
                       <span className={`inline-block w-1 rounded-full align-middle ${sel ? 'h-4 bg-rider' : 'h-0'}`} /> {l.number}
                     </td>
-                    <td className={`py-2.5 font-semibold ${isBest ? 'text-violet-300' : ''}`}>
-                      {formatLap(l.timeMs)}
-                      {isBest && <span className="ml-1.5 rounded bg-violet-500/20 px-1 text-[9px] text-violet-300">RÁPIDA</span>}
+                    <td className="py-2">
+                      <div className={`font-semibold ${isBest ? 'text-violet-300' : ''}`}>{formatLap(l.timeMs)}</div>
+                      <div className={`text-[10px] ${isBest ? 'text-violet-300/80' : 'text-rider/90'}`}>
+                        {isBest ? 'VUELTA RÁPIDA' : formatDelta(l.timeMs - best.timeMs)}
+                      </div>
                     </td>
-                    <td className={`py-2.5 text-xs ${isBest ? 'text-zinc-500' : 'text-rider/90'}`}>
-                      {isBest ? '—' : formatDelta(l.timeMs - best.timeMs)}
-                    </td>
-                    <td className="py-2.5 pr-3 text-right text-xs text-zinc-300">{l.stats.avgDeviationM.toFixed(2)} m</td>
+                    {[0, 1, 2].map((i) => {
+                      const v = l.sectors?.[i];
+                      const b = v != null && v === bestSectors[i];
+                      return (
+                        <td key={i} className={`py-2 text-right text-xs ${i === 2 ? 'pr-3' : ''}`}>
+                          <span className={b ? 'rounded bg-violet-500/25 px-1 font-semibold text-violet-200' : 'text-zinc-300'}>
+                            {v == null ? '—' : (v / 1000).toFixed(2)}
+                          </span>
+                        </td>
+                      );
+                    })}
                   </tr>
                 );
               })}
+              {bestSectors.every((v) => v != null) && laps.length > 1 && (
+                <tr className="border-t border-edge font-mono tabular text-zinc-400">
+                  <td className="px-3 py-2 text-[10px]">IDEAL</td>
+                  <td className="py-2 text-xs" colSpan={4}>
+                    {formatLap(bestSectors.reduce((a, b) => a + b, 0))}
+                    <span className="ml-2 text-[10px] text-zinc-500">suma de mejores parciales</span>
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -142,9 +166,10 @@ export default function AnalysisView({ sessionId, onSelectSession, onGoLive }) {
       {/* Columna derecha: mapa + métricas */}
       {lap && model && (
         <section className="flex min-w-0 flex-1 flex-col gap-3">
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <Metric label="Tiempo" value={formatLap(lap.timeMs)} accent={lap === best ? 'text-violet-300' : ''} />
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+            <Metric label="Tiempo" value={formatLap(lap.timeMs)} accent={lap === best ? 'text-violet-300' : undefined} />
             <Metric label="Vel. máx" value={`${Math.round(lap.stats.maxSpeedKmh)}`} unit="km/h" />
+            <Metric label="Incl. máx" value={lap.stats.maxLeanDeg == null ? 'N/D' : lap.stats.maxLeanDeg.toFixed(0)} unit={lap.stats.maxLeanDeg == null ? '' : '°'} />
             <Metric label="Desv. media" value={lap.stats.avgDeviationM.toFixed(2)} unit="m" />
             <Metric label="Desv. máx" value={lap.stats.maxDeviationM.toFixed(1)} unit="m" />
           </div>
@@ -152,9 +177,10 @@ export default function AnalysisView({ sessionId, onSelectSession, onGoLive }) {
           <div className="relative overflow-hidden rounded-2xl border border-edge">
             <TrackMap
               model={model}
-              riderPoints={lap.points}
+              riderPoints={lap.stats.smooth}
+              smooth={false}
               marker={marker}
-              className="h-[52vh] min-h-[320px] bg-[#0b0e12]"
+              className="h-[52vh] min-h-[320px] bg-[#0c0c10]"
             />
             <div className="pointer-events-none absolute left-3 top-3 flex flex-col gap-1 rounded-lg bg-black/60 px-2.5 py-2 text-[11px] backdrop-blur">
               <span className="flex items-center gap-2"><i className="h-0.5 w-5 rounded bg-ideal" /> Trazada ideal</span>
@@ -162,7 +188,8 @@ export default function AnalysisView({ sessionId, onSelectSession, onGoLive }) {
             </div>
           </div>
           <p className="text-[11px] text-zinc-500">
-            Rueda / pellizco para zoom, arrastra para mover, doble clic para acercar una curva. Desliza sobre las gráficas para situar el punto en el mapa.
+            Rueda / pellizco para zoom, arrastra para mover, doble clic para acercar una curva (frenada, ápice, salida). Desliza sobre las gráficas para
+            situar el punto en el mapa. Trazada roja suavizada con Catmull-Rom; desviación medida con Haversine.
           </p>
 
           <div className="grid gap-3 rounded-2xl border border-edge bg-panel p-3 xl:grid-cols-2">
@@ -186,6 +213,18 @@ export default function AnalysisView({ sessionId, onSelectSession, onGoLive }) {
               hoverIndex={hover}
               onHover={setHover}
             />
+            {hasLean && lap.stats.maxLeanDeg != null && (
+              <TraceChart
+                trace={lap.stats.trace}
+                value={(d) => d.lean ?? 0}
+                title="Inclinación (+izq/−dcha)"
+                unit="°"
+                color="#f59e0b"
+                symmetric
+                hoverIndex={hover}
+                onHover={setHover}
+              />
+            )}
           </div>
         </section>
       )}

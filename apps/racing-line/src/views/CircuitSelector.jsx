@@ -2,6 +2,12 @@ import React from 'react';
 import { CIRCUITS, getTrackModel, hasGeometry } from '../data/circuits.js';
 import MiniTrack from '../components/MiniTrack.jsx';
 
+const QUALITY = {
+  real: { label: 'GPS real', cls: 'bg-ideal/15 text-ideal', title: 'Trazado GPS real' },
+  aprox: { label: 'Aprox.', cls: 'bg-amber-400/10 text-amber-300', title: 'Forma aproximada: sustitúyela por una vuelta GPS real' },
+  template: { label: 'Plantilla', cls: 'bg-sky-400/10 text-sky-300', title: 'Trazado representativo listo para rellenar con datos reales' },
+};
+
 export default function CircuitSelector({ selectedId, onSelect }) {
   return (
     <div className="mx-auto max-w-5xl px-4 pb-28 pt-4">
@@ -40,12 +46,10 @@ export default function CircuitSelector({ selectedId, onSelect }) {
                   <span className="font-semibold leading-tight">{c.name}</span>
                   {ok && (
                     <span
-                      className={`shrink-0 rounded px-1.5 py-0.5 font-mono text-[10px] uppercase ${
-                        c.dataQuality === 'real' ? 'bg-ideal/15 text-ideal' : 'bg-amber-400/10 text-amber-300'
-                      }`}
-                      title={c.dataQuality === 'real' ? 'Trazado GPS real' : 'Trazado aproximado: graba una vuelta para afinarlo'}
+                      className={`shrink-0 rounded px-1.5 py-0.5 font-mono text-[10px] uppercase ${QUALITY[c.dataQuality].cls}`}
+                      title={QUALITY[c.dataQuality].title}
                     >
-                      {c.dataQuality === 'real' ? 'GPS real' : 'Aprox.'}
+                      {QUALITY[c.dataQuality].label}
                     </span>
                   )}
                 </div>

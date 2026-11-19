@@ -1,50 +1,35 @@
-// Persistencia de sesiones en IndexedDB (con respaldo en localStorage).
+// Persistencia offline de sesiones en localStorage.
 //
-// Una sesión guarda las vueltas con sus puntos en el plano local del circuito
-// en formato compacto [x, y, tRelativo, v] para minimizar espacio.
+// Cada vuelta guarda sus puntos en el plano local del circuito en formato
+// compacto [x, y, tRelativo, v, lean] para aprovechar el límite de ~5 MB.
 
-const DB_NAME = 'racing-line';
-const STORE = 'sessions';
-const LS_KEY = 'racing-line:sessions';
+const LS_KEY = 'racing-line:sessions:v2';
 
-function openDb() {
-  return new Promise((resolve, reject) => {
-    if (typeof indexedDB === 'undefined') return reject(new Error('no idb'));
-    const req = indexedDB.open(DB_NAME, 1);
-    req.onupgradeneeded = () => {
-      const db = req.result;
-      if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE, { keyPath: 'id' });
-    };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
-
-async function withStore(mode, fn) {
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE, mode);
-    const store = tx.objectStore(STORE);
-    const req = fn(store);
-    tx.oncomplete = () => resolve(req?.result);
-    tx.onerror = () => reject(tx.error);
-  });
-}
-
-const lsRead = () => {
+function read() {
   try {
-    return JSON.parse(localStorage.getItem(LS_KEY) || '[]');
+    const list = JSON.parse(localStorage.getItem(LS_KEY) || '[]');
+    return Array.isArray(list) ? list : [];
   } catch {
     return [];
   }
-};
-const lsWrite = (list) => {
-  try {
-    localStorage.setItem(LS_KEY, JSON.stringify(list));
-  } catch {
-    /* cuota llena o almacenamiento bloqueado */
+}
+
+/** Escribe la lista; si se llena el almacenamiento, descarta las sesiones más antiguas. */
+function write(list) {
+  const sorted = [...list].sort((a, b) => b.createdAt - a.createdAt);
+  while (sorted.length) {
+    try {
+      localStorage.setItem(LS_KEY, JSON.stringify(sorted));
+      return true;
+    } catch {
+      if (sorted.length === 1) return false;
+      sorted.pop(); // cuota excedida → eliminar la más antigua
+    }
   }
-};
+  return false;
+}
+
+const r2 = (v) => (v == null ? null : Math.round(v * 100) / 100);
 
 export function packLap(lap) {
   const t0 = lap.startT;
@@ -52,12 +37,13 @@ export function packLap(lap) {
     number: lap.number,
     startT: lap.startT,
     timeMs: Math.round(lap.timeMs),
-    pts: lap.points.map((p) => [
-      Math.round(p.x * 100) / 100,
-      Math.round(p.y * 100) / 100,
-      Math.round(p.t - t0),
-      p.v == null ? null : Math.round(p.v * 100) / 100,
-    ]),
+    // redondeo coherente: T3 = vuelta − T1 − T2 para que la suma cuadre al ms
+    sectors: lap.sectors
+      ? [Math.round(lap.sectors[0]), Math.round(lap.sectors[1]), Math.round(lap.timeMs) - Math.round(lap.sectors[0]) - Math.round(lap.sectors[1])]
+      : null,
+    maxSpeed: r2(lap.maxSpeed),
+    maxLean: lap.maxLean == null ? null : Math.round(lap.maxLean * 10) / 10,
+    pts: lap.points.map((p) => [r2(p.x), r2(p.y), Math.round(p.t - t0), r2(p.v), p.lean == null ? null : Math.round(p.lean * 10) / 10]),
   };
 }
 
@@ -66,34 +52,23 @@ export function unpackLap(l) {
     number: l.number,
     startT: l.startT,
     timeMs: l.timeMs,
-    points: l.pts.map(([x, y, t, v]) => ({ x, y, t: l.startT + t, v })),
+    sectors: l.sectors,
+    maxSpeed: l.maxSpeed,
+    maxLean: l.maxLean,
+    points: l.pts.map(([x, y, t, v, lean]) => ({ x, y, t: l.startT + t, v, lean: lean ?? null })),
   };
 }
 
 export async function saveSession(session) {
-  try {
-    await withStore('readwrite', (s) => s.put(session));
-  } catch {
-    const list = lsRead().filter((x) => x.id !== session.id);
-    list.push(session);
-    lsWrite(list);
-  }
+  const list = read().filter((x) => x.id !== session.id);
+  list.push(session);
+  if (!write(list)) throw new Error('No hay espacio en el almacenamiento local');
 }
 
 export async function listSessions() {
-  let list;
-  try {
-    list = await withStore('readonly', (s) => s.getAll());
-  } catch {
-    list = lsRead();
-  }
-  return (list || []).sort((a, b) => b.createdAt - a.createdAt);
+  return read().sort((a, b) => b.createdAt - a.createdAt);
 }
 
 export async function deleteSession(id) {
-  try {
-    await withStore('readwrite', (s) => s.delete(id));
-  } catch {
-    lsWrite(lsRead().filter((x) => x.id !== id));
-  }
+  write(read().filter((x) => x.id !== id));
 }

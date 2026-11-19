@@ -5,7 +5,9 @@
 //   · errores típicos de piloto: abrirse a la salida de 1–2 curvas por vuelta
 //   · perfil de velocidad realista (límite de aceleración lateral, frenada y
 //     aceleración longitudinal) y ritmo variable entre vueltas
-//   · ruido GPS (~0,6 m) a 10 Hz
+//   · velocidades realistas (80 km/h en las curvas lentas → vmax en recta)
+//   · ángulo de inclinación físico: lean = atan(v²·κ / g)
+//   · ruido GPS y frecuencia configurable (1 Hz como un móvil, o 10 Hz)
 // El reloj es virtual: con `timeScale` > 1 la simulación corre acelerada pero
 // los tiempos de vuelta siguen siendo los "reales" de la moto.
 
@@ -24,7 +26,7 @@ function mulberry32(seed) {
 }
 
 /** Perfil de velocidad (m/s) sobre la trazada por pasadas adelante/atrás. */
-export function speedProfile(line, { vmax, aLat = 1.25 * G, aAcc = 0.55 * G, aBrk = 1.05 * G }) {
+export function speedProfile(line, { vmax, vmin = 80 / 3.6, aLat = 1.25 * G, aAcc = 0.55 * G, aBrk = 1.05 * G }) {
   const n = line.length;
   const k = curvatureClosed(line);
   const ks = k.map((_, i) => {
@@ -33,7 +35,7 @@ export function speedProfile(line, { vmax, aLat = 1.25 * G, aAcc = 0.55 * G, aBr
     return s / 9;
   });
   const ds = line.map((p, i) => dist(p, line[(i + 1) % n]));
-  const v = ks.map((kk) => Math.min(vmax, kk > 1e-6 ? Math.sqrt(aLat / kk) : vmax));
+  const v = ks.map((kk) => Math.max(vmin, Math.min(vmax, kk > 1e-6 ? Math.sqrt(aLat / kk) : vmax)));
   // Dos vueltas de pasadas para que el perfil sea periódico.
   for (let pass = 0; pass < 2; pass++) {
     for (let i = 0; i < 2 * n; i++) {
@@ -61,12 +63,16 @@ export function speedProfile(line, { vmax, aLat = 1.25 * G, aAcc = 0.55 * G, aBr
  * @param {number} [opts.seed]
  */
 export function createSimulator(model, opts = {}) {
-  const { laps = 3, timeScale = 4, vmaxKmh = 280, pace = 0.9, rateHz = 10 } = opts;
+  const { laps = 3, timeScale = 4, vmaxKmh = 260, pace = 0.92, rateHz = 1 } = opts;
+  const SIM_DT = 0.1; // integración interna a 10 Hz
+  const emitEvery = Math.max(1, Math.round(1 / (rateHz * SIM_DT))); // pasos entre fixes
+  const noise = rateHz <= 2 ? 1.6 : 1.0; // error GPS (m)
   const rnd = mulberry32(opts.seed ?? Date.now());
   const line = model.racingLine;
   const n = line.length;
   const normals = normalsClosed(line);
-  const prof = speedProfile(line, { vmax: vmaxKmh / 3.6 });
+  // vmin escalado por el ritmo para que la velocidad real en curva lenta sea ~80 km/h
+  const prof = speedProfile(line, { vmax: vmaxKmh / 3.6 / pace, vmin: 80 / 3.6 / pace });
   const lapLen = prof.ds.reduce((a, b) => a + b, 0);
   const cum = [0];
   for (let i = 0; i < n; i++) cum.push(cum[i] + prof.ds[i]);
@@ -144,10 +150,14 @@ export function createSimulator(model, opts = {}) {
     };
     const nx = normals[i].x;
     const ny = normals[i].y;
-    const gx = (rnd() - 0.5) * 1.2;
-    const gy = (rnd() - 0.5) * 1.2;
+    const gx = (rnd() - 0.5) * noise;
+    const gy = (rnd() - 0.5) * noise;
     const ll = model.proj.toLatLon(base.x + nx * off + gx, base.y + ny * off + gy);
-    return { lat: ll.lat, lon: ll.lon, t: t0 + simT, speed: v, accuracy: 0.8 + rnd() };
+    // inclinación: tan(lean) = v²·κ / g  (+ = izquierda), con algo de ruido
+    const kappa = prof.curvature[i] * Math.sign(signedK[i] || 1);
+    let lean = (Math.atan((v * v * kappa) / G) * 180) / Math.PI + (rnd() - 0.5) * 1.5;
+    lean = Math.max(-62, Math.min(62, lean));
+    return { lat: ll.lat, lon: ll.lon, t: t0 + simT, speed: v, accuracy: noise + rnd(), lean };
   };
 
   const totalS = lapLen * (laps + 1) + 150; // vuelta de salida + N vueltas + frenada
@@ -157,17 +167,18 @@ export function createSimulator(model, opts = {}) {
     /** Reloj virtual (ms) de la simulación. */
     now() {
       if (!timer) return t0 + simT;
-      return t0 + simT + Math.min(1000 / rateHz, (performance.now() - lastRealTick) * timeScale);
+      return t0 + simT + Math.min(SIM_DT * 1000, (performance.now() - lastRealTick) * timeScale);
     },
     start(onFix, onEnd) {
       t0 = Date.now();
       lastRealTick = performance.now();
-      const dt = 1 / rateHz;
+      let n = 0;
       timer = setInterval(() => {
         lastRealTick = performance.now();
-        // con timeScale > 1 avanzamos varios pasos por tick
+        // con timeScale > 1 avanzamos varios pasos de 100 ms por tick
         for (let k = 0; k < timeScale; k++) {
-          onFix(step(dt));
+          const fix = step(SIM_DT);
+          if (n++ % emitEvery === 0) onFix(fix);
           if (s >= totalS) {
             this.stop();
             finishedAt = t0 + simT;
@@ -175,7 +186,7 @@ export function createSimulator(model, opts = {}) {
             return;
           }
         }
-      }, 1000 / rateHz);
+      }, SIM_DT * 1000);
     },
     stop() {
       if (timer) clearInterval(timer);
@@ -185,7 +196,11 @@ export function createSimulator(model, opts = {}) {
     generateAll() {
       t0 = Date.now();
       const out = [];
-      while (s < totalS) out.push(step(1 / rateHz));
+      let n = 0;
+      while (s < totalS) {
+        const fix = step(SIM_DT);
+        if (n++ % emitEvery === 0) out.push(fix);
+      }
       return out;
     },
     get finishedAt() {

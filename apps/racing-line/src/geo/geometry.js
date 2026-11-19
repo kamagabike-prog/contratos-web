@@ -178,3 +178,64 @@ export function bounds(pts) {
   }
   return { minX, minY, maxX, maxY, w: maxX - minX, h: maxY - minY };
 }
+
+/**
+ * Suavizado Catmull-Rom (centrípeta) de una trazada GPS abierta.
+ *
+ * Un GPS de móvil a 1 Hz da un punto cada 20–70 m a velocidad de circuito:
+ * unir los puntos con rectas dibuja polígonos y "corta" las curvas. La spline
+ * pasa exactamente por cada fix y genera `samples` puntos intermedios por
+ * tramo. Los atributos escalares (t, v, lean) se interpolan linealmente.
+ *
+ * @param {{x:number,y:number,t?:number,v?:number|null,lean?:number|null}[]} pts
+ * @param {number} [maxStep=4]  separación máxima deseada entre puntos (m)
+ */
+export function smoothTrace(pts, maxStep = 4, alpha = 0.5) {
+  const n = pts.length;
+  if (n < 3) return pts.slice();
+  const out = [];
+  const tj = (ti, a, b) => ti + Math.pow(Math.max(dist(a, b), 1e-6), alpha);
+  for (let i = 0; i < n - 1; i++) {
+    const p0 = pts[Math.max(0, i - 1)];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = pts[Math.min(n - 1, i + 2)];
+    const segLen = dist(p1, p2);
+    const samples = Math.max(1, Math.min(40, Math.ceil(segLen / maxStep)));
+    if (segLen < 1e-6) {
+      out.push(p1);
+      continue;
+    }
+    // extremos: duplicar puntos degenera la spline → extrapolamos un punto fantasma
+    const q0 = p0 === p1 ? { x: 2 * p1.x - p2.x, y: 2 * p1.y - p2.y } : p0;
+    const q3 = p3 === p2 ? { x: 2 * p2.x - p1.x, y: 2 * p2.y - p1.y } : p3;
+    const t0 = 0;
+    const t1 = tj(t0, q0, p1);
+    const t2 = tj(t1, p1, p2);
+    const t3 = tj(t2, p2, q3);
+    for (let k = 0; k < samples; k++) {
+      const w = k / samples;
+      const t = t1 + (t2 - t1) * w;
+      const A1 = lerpT(q0, p1, t0, t1, t);
+      const A2 = lerpT(p1, p2, t1, t2, t);
+      const A3 = lerpT(p2, q3, t2, t3, t);
+      const B1 = lerpT(A1, A2, t0, t2, t);
+      const B2 = lerpT(A2, A3, t1, t3, t);
+      const C = lerpT(B1, B2, t1, t2, t);
+      out.push({
+        x: C.x,
+        y: C.y,
+        t: lin(p1.t, p2.t, w),
+        v: lin(p1.v, p2.v, w),
+        lean: lin(p1.lean, p2.lean, w),
+      });
+    }
+  }
+  out.push(pts[n - 1]);
+  return out;
+}
+
+function lin(a, b, w) {
+  if (a == null || b == null) return a ?? b ?? null;
+  return a + (b - a) * w;
+}

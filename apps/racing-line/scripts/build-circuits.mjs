@@ -2,6 +2,8 @@
 //
 //  · Montmeló: geometría REAL (GeoJSON de bacinger/f1-circuits, licencia MIT),
 //    suavizada con Catmull-Rom y remuestreada cada 6 m.
+//  · Aragón, Navarra, Albacete, Almería y Cartagena: trazados REPRESENTATIVOS
+//    (centro, longitud y sentido aproximados) listos para sustituir.
 //  · Jerez y Cheste: APROXIMACIÓN construida a partir de puntos de control en
 //    metros, anclada en las coordenadas reales del circuito, escalada a la
 //    longitud oficial y con el sentido de giro real. Sustitúyela por una vuelta
@@ -17,6 +19,7 @@ import {
   polylineLength,
   signedArea,
   normalsClosed,
+  curvatureClosed,
 } from '../src/geo/geometry.js';
 
 const STEP = 6; // m entre puntos
@@ -64,6 +67,62 @@ const APPROX = {
       [-135, 85], [-130, 20], [-75, -5], // C14 Adrián Campos
     ],
   },
+  aragon: {
+    center: { lat: 41.0780, lon: -0.2030 },
+    length: 5077,
+    rotationDeg: 0,
+    clockwise: false,
+    ctrl: [
+      [0, 0], [300, 0], [600, 0], [760, 30], [800, 120], [720, 180], [600, 170],
+      [520, 230], [560, 330], [700, 380], [820, 460], [800, 560], [650, 600],
+      [400, 580], [200, 620], [0, 640], [-150, 600], [-200, 500], [-120, 420],
+      [-160, 330], [-260, 280], [-300, 180], [-220, 80], [-120, 20],
+    ],
+  },
+  navarra: {
+    center: { lat: 42.5605, lon: -2.1623 },
+    length: 3933,
+    rotationDeg: 0,
+    clockwise: true,
+    ctrl: [
+      [0, 0], [300, 0], [480, -20], [540, -100], [480, -170], [380, -160], [300, -220],
+      [340, -320], [460, -360], [500, -450], [400, -520], [200, -500], [60, -430],
+      [-80, -470], [-200, -420], [-220, -300], [-120, -230], [-180, -140], [-150, -40],
+    ],
+  },
+  albacete: {
+    center: { lat: 38.9573, lon: -1.7920 },
+    length: 3539,
+    rotationDeg: 0,
+    clockwise: true,
+    ctrl: [
+      [0, 0], [350, 0], [520, -30], [560, -120], [460, -180], [300, -170], [200, -240],
+      [260, -340], [200, -420], [0, -430], [-150, -380], [-200, -260], [-140, -160],
+      [-200, -80], [-130, -10],
+    ],
+  },
+  almeria: {
+    center: { lat: 37.0234, lon: -2.3606 },
+    length: 3389,
+    rotationDeg: 0,
+    clockwise: true,
+    ctrl: [
+      [0, 0], [280, 10], [420, -40], [430, -140], [330, -170], [250, -120], [170, -170],
+      [200, -280], [120, -360], [-20, -330], [-60, -230], [-160, -260], [-250, -200],
+      [-220, -90], [-120, -20],
+    ],
+  },
+  cartagena: {
+    center: { lat: 37.6346, lon: -1.0129 },
+    length: 3545,
+    rotationDeg: 0,
+    clockwise: true,
+    ctrl: [
+      [0, 0], [320, 0], [470, -50], [480, -150], [380, -200], [280, -160], [200, -230],
+      [240, -330], [150, -400], [20, -360], [-40, -260], [-140, -300], [-230, -230],
+      [-200, -120], [-240, -40], [-140, 10],
+    ],
+  },
 };
 
 function fromControlPoints(def) {
@@ -109,42 +168,77 @@ function checkDirection(pts, clockwise) {
   if (cw !== clockwise) throw new Error('Sentido de giro inesperado');
 }
 
-/** Línea de meta: segmento perpendicular a la pista en el punto 0. */
-function finishLine(latlon, width) {
-  const lat0 = latlon[0].lat;
-  const lon0 = latlon[0].lon;
+const tracks = {
+  jerez: { geo: fromControlPoints(APPROX.jerez), width: 12, source: 'aproximación' },
+  montmelo: {
+    geo: fromGeoJSON('./source-f1-circuits.geojson', 'es-1991'),
+    width: 12,
+    source: 'GPS real · bacinger/f1-circuits (MIT)',
+  },
+  cheste: { geo: fromControlPoints(APPROX.cheste), width: 12, source: 'aproximación' },
+  aragon: { geo: fromControlPoints(APPROX.aragon), width: 15, source: 'representativo (rellenar)' },
+  navarra: { geo: fromControlPoints(APPROX.navarra), width: 12, source: 'representativo (rellenar)' },
+  albacete: { geo: fromControlPoints(APPROX.albacete), width: 12, source: 'representativo (rellenar)' },
+  almeria: { geo: fromControlPoints(APPROX.almeria), width: 12, source: 'representativo (rellenar)' },
+  cartagena: { geo: fromControlPoints(APPROX.cartagena), width: 12, source: 'representativo (rellenar)' },
+};
+
+/** Línea de cronometraje perpendicular a la pista en el índice i. */
+function timingLine(latlon, width, i) {
+  const lat0 = latlon[i].lat;
+  const lon0 = latlon[i].lon;
   const proj = createProjection(lat0, lon0);
   const xy = latlon.map((c) => proj.toXY(c.lat, c.lon));
-  const nrm = normalsClosed(xy)[0];
-  const half = width / 2 + 8; // un poco más ancha que la pista (pit-lane excluido)
+  const nrm = normalsClosed(xy)[i];
+  const half = width / 2 + 8;
   const a = proj.toLatLon(nrm.x * half, nrm.y * half);
   const b = proj.toLatLon(-nrm.x * half, -nrm.y * half);
   return [a, b].map((p) => [round(p.lat), round(p.lon)]);
 }
 
+/** Índice de parcial: el tramo más recto cerca de la fracción `f` de la vuelta. */
+function splitIndex(latlon, f) {
+  const proj = createProjection(latlon[0].lat, latlon[0].lon);
+  const xy = latlon.map((c) => proj.toXY(c.lat, c.lon));
+  const k = curvatureClosed(xy);
+  const n = xy.length;
+  const c = Math.round(n * f);
+  const win = Math.round(n * 0.07);
+  let best = c;
+  let bestK = Infinity;
+  for (let i = c - win; i <= c + win; i++) {
+    let s = 0;
+    for (let j = -5; j <= 5; j++) s += Math.abs(k[(i + j + n) % n]);
+    if (s < bestK) {
+      bestK = s;
+      best = i;
+    }
+  }
+  return (best + n) % n;
+}
+
 const round = (v) => Math.round(v * 1e6) / 1e6;
 
-const tracks = {
-  jerez: { geo: fromControlPoints(APPROX.jerez), width: 12, source: 'approx' },
-  montmelo: {
-    geo: fromGeoJSON('./source-f1-circuits.geojson', 'es-1991'),
-    width: 12,
-    source: 'bacinger/f1-circuits (MIT)',
-  },
-  cheste: { geo: fromControlPoints(APPROX.cheste), width: 12, source: 'approx' },
-};
-
 let out = `// ARCHIVO GENERADO por scripts/build-circuits.mjs — no editar a mano.\n`;
-out += `// Líneas centrales en formato [lat, lon] (WGS84), equiespaciadas ~${STEP} m, en sentido de marcha.\n\n`;
+out += `// Líneas centrales [lat, lon] (WGS84) equiespaciadas ~${STEP} m en sentido de marcha.\n`;
+out += `// timing: [meta, T1, T2] → la vuelta se divide en 3 sectores (T1, T2, T3 = meta).\n\n`;
+out += `export const GEOMETRY = {\n`;
 for (const [id, t] of Object.entries(tracks)) {
-  const fl = finishLine(t.geo, t.width);
-  out += `// ${id}: ${t.geo.length} puntos · fuente: ${t.source}\n`;
-  out += `export const ${id}FinishLine = ${JSON.stringify(fl)};\n`;
-  out += `export const ${id}Centerline = [\n`;
+  const i1 = splitIndex(t.geo, 1 / 3);
+  const i2 = splitIndex(t.geo, 2 / 3);
+  const finish = timingLine(t.geo, t.width, 0);
+  const t1 = timingLine(t.geo, t.width, i1);
+  const t2 = timingLine(t.geo, t.width, i2);
+  out += `  // ${t.geo.length} puntos · fuente: ${t.source}\n`;
+  out += `  ${id}: {\n    source: ${JSON.stringify(t.source)},\n`;
+  out += `    finishLine: ${JSON.stringify(finish)},\n`;
+  out += `    sectorLines: ${JSON.stringify([t1, t2])},\n`;
+  out += `    centerline: [\n`;
   const rows = t.geo.map((p) => `[${round(p.lat)},${round(p.lon)}]`);
-  for (let i = 0; i < rows.length; i += 6) out += '  ' + rows.slice(i, i + 6).join(',') + ',\n';
-  out += `];\n\n`;
-  console.log(id, t.geo.length, 'pts', 'meta', fl);
+  for (let i = 0; i < rows.length; i += 6) out += '      ' + rows.slice(i, i + 6).join(',') + ',\n';
+  out += `    ],\n  },\n`;
+  console.log(id.padEnd(10), String(t.geo.length).padStart(4), 'pts', 'T1@', i1, 'T2@', i2);
 }
+out += `};\n`;
 writeFileSync(new URL('../src/data/trackGeometry.js', import.meta.url), out);
 console.log('OK → src/data/trackGeometry.js');

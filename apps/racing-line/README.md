@@ -15,8 +15,19 @@ npm run build        # genera ../../racing
 npm run gen:circuits # regenera src/data/trackGeometry.js
 ```
 
-Pestañas: **Circuito** (selector) → **Grabación** (GPS real o «Simular vuelta GPS», ×1/×4/×10)
-→ **Análisis** (vueltas, vuelta rápida, mapa con zoom/paneo, velocidad y desviación).
+Pestañas: **1. Circuitos** → **2. Pista** (GPS real o «Simular Tanda en Vivo» a 1/10 Hz, tiempo real/×4/×10)
+→ **3. Análisis** (vueltas, parciales T1/T2/T3, vuelta rápida y mejores parciales en violeta, vuelta
+ideal, mapa con zoom/paneo, velocidad, desviación e inclinación).
+
+## Funciones clave
+
+- **Cronometraje**: intersección 2D del vector de movimiento con la meta (A-B) y los parciales T1/T2,
+  solo en sentido de marcha, con el instante interpolado entre fixes (preciso incluso a 1 Hz).
+- **Suavizado**: la trazada roja se interpola con Catmull-Rom centrípeta (`smoothTrace`).
+- **Desviación**: segmento verde más cercano a cada punto rojo + distancia Haversine.
+- **Inclinación**: `DeviceOrientationEvent` (con permiso en iOS), cero calibrado al iniciar; orientativa.
+- **Simulador**: 80 km/h en curva lenta → vmax en recta, lean = atan(v²κ/g), errores de trazada y ruido GPS.
+- **Persistencia**: `localStorage` (formato compacto, descarta sesiones antiguas si se llena).
 
 ## Estructura
 
@@ -32,7 +43,8 @@ Pestañas: **Circuito** (selector) → **Grabación** (GPS real o «Simular vuel
 | `src/telemetry/simulator.js` | Simulador GPS (perfil de velocidad físico, desviaciones, errores en curva, ruido) |
 | `src/telemetry/gpsSource.js` | `watchPosition` con `enableHighAccuracy` + Wake Lock |
 | `src/telemetry/analysis.js` | Vel. máxima, desviación media/máxima respecto a la ideal |
-| `src/storage/sessions.js` | Sesiones en IndexedDB (respaldo en localStorage) |
+| `src/storage/sessions.js` | Sesiones en localStorage |
+| `src/telemetry/leanSensor.js` | Ángulo de inclinación por giroscopio |
 | `src/components/TrackMap.jsx` | Mapa SVG con pan/zoom (rueda, pellizco, botones, seguir piloto) |
 
 ## Datos de circuitos
@@ -41,7 +53,10 @@ Pestañas: **Circuito** (selector) → **Grabación** (GPS real o «Simular vuel
 - **Jerez y Cheste**: aproximaciones (coordenadas, longitud oficial y sentido de giro reales; forma
   aproximada). Para precisión real, sustituye los puntos de control en `scripts/build-circuits.mjs`
   por una vuelta GPS grabada o un export de OpenStreetMap (`highway=raceway`) y ejecuta `npm run gen:circuits`.
-- Aragón, Navarra, Albacete y Almería aparecen en el selector sin geometría todavía.
+- **Aragón, Navarra, Albacete, Almería y Cartagena**: trazados *representativos* (plantilla) con
+  longitud y sentido aproximados, listos para rellenar con datos reales en `scripts/build-circuits.mjs`.
+- Las líneas de meta y parciales se generan perpendiculares a la pista (meta en el punto 0; T1/T2 en
+  el tramo más recto cerca de 1/3 y 2/3 de la vuelta). Con datos reales, ajusta sus coordenadas.
 
 La trazada ideal es una aproximación de mínima curvatura (exterior–ápice–exterior); no modela
 frenada tardía ni ápices retrasados específicos de moto.
