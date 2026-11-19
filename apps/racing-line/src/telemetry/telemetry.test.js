@@ -27,7 +27,8 @@ describe('geometría', () => {
   });
   it('inclinación: móvil vertical girado 30°', () => {
     expect(rawLean(90, 30)).toBeCloseTo(0, 5); // β=90 → cos β = 0: el giro es alrededor del eje Z
-    expect(rawLean(10, 25)).toBe(25); // montaje horizontal
+    // montaje horizontal: γ>0 = borde derecho abajo = inclinación a la DERECHA (−)
+    expect(rawLean(10, 25)).toBeCloseTo(-25, 6);
   });
 });
 

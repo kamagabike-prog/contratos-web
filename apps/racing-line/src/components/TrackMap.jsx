@@ -38,6 +38,7 @@ export default function TrackMap({
   className = '',
   compact = false,
   overlay = null,
+  refPoints = null, // vuelta de referencia (violeta #a78bfa), ya suavizada
 }) {
   const wrapRef = useRef(null);
   const [size, setSize] = useState({ w: 400, h: 300 });
@@ -99,6 +100,8 @@ export default function TrackMap({
     () => toPath(smooth && riderPoints?.length > 2 ? smoothTrace(riderPoints) : riderPoints || []),
     [riderPoints, smooth]
   );
+
+  const refPath = useMemo(() => toPath(refPoints || []), [refPoints]);
 
   // ------------------------------------------------------------------ zoom/pan
   const zoomAt = useCallback(
@@ -236,6 +239,19 @@ export default function TrackMap({
             strokeLinejoin="round"
             strokeLinecap="round"
             style={{ filter: 'drop-shadow(0 0 2px rgba(34,197,94,0.55))' }}
+          />
+        )}
+        {/* vuelta de referencia (bajo la roja) */}
+        {refPath && (
+          <path
+            d={refPath}
+            fill="none"
+            stroke="#a78bfa"
+            strokeWidth={1.5}
+            strokeOpacity={0.9}
+            vectorEffect="non-scaling-stroke"
+            strokeLinejoin="round"
+            strokeLinecap="round"
           />
         )}
         {/* trazada del piloto */}

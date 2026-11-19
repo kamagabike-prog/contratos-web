@@ -16,6 +16,7 @@ export default function TraceChart({
   onHover,
   format = (v) => v.toFixed(0),
   height = 130,
+  minRange = 2, // semieje mínimo en modo simétrico
 }) {
   const ref = useRef(null);
   const [w, setW] = useState(320);
@@ -34,7 +35,7 @@ export default function TraceChart({
     let lo = Math.min(0, ...vals);
     let hi = Math.max(...vals, 1);
     if (symmetric) {
-      const m = Math.max(Math.abs(lo), Math.abs(hi), 2);
+      const m = Math.max(Math.abs(lo), Math.abs(hi), minRange);
       lo = -m;
       hi = m;
     } else {
@@ -49,7 +50,7 @@ export default function TraceChart({
     const area = symmetric && trace.length ? `${path}L${sx(maxS)} ${sy(0)}L0 ${sy(0)}Z` : '';
     const yTicks = symmetric ? [lo, 0, hi] : [0, hi / 2, hi];
     return { path, area, yTicks, sx, sy, maxS };
-  }, [trace, value, iw, ih, symmetric]);
+  }, [trace, value, iw, ih, symmetric, minRange]);
 
   const handle = (e) => {
     const r = ref.current.getBoundingClientRect();
@@ -75,7 +76,7 @@ export default function TraceChart({
           {title} <span className="font-normal text-zinc-500">({unit})</span>
         </span>
         {hd && (
-          <span className="font-mono text-xs tabular text-zinc-200">
+          <span className="shrink-0 whitespace-nowrap pl-2 font-mono text-xs tabular text-zinc-200">
             {format(value(hd))} {unit} · {(hd.s / 1000).toFixed(2)} km
           </span>
         )}

@@ -6,10 +6,18 @@ export function isGeolocationAvailable() {
 
 export function createGpsSource() {
   let watchId = null;
+  // Algunos navegadores (Android con hora GPS, iOS antiguos) dan pos.timestamp
+  // en un reloj distinto de Date.now(). El cronómetro compara now() con los t
+  // de los fixes, así que estimamos el desfase como el mínimo (Date.now() −
+  // timestamp) visto (la latencia siempre suma, el mínimo se acerca al desfase
+  // real). Por debajo de 1 s se ignora (es latencia normal).
+  let minLag = null;
+  const skew = () => (minLag != null && Math.abs(minLag) > 1000 ? minLag : 0);
   return {
     kind: 'gps',
-    now: () => Date.now(),
+    now: () => Date.now() - skew(),
     start(onFix, _onEnd, onError) {
+      minLag = null;
       if (!isGeolocationAvailable()) {
         onError?.(new Error('Geolocalización no disponible en este dispositivo'));
         return;
@@ -17,11 +25,13 @@ export function createGpsSource() {
       watchId = navigator.geolocation.watchPosition(
         (pos) => {
           const c = pos.coords;
+          const lag = Date.now() - pos.timestamp;
+          if (Number.isFinite(lag) && (minLag == null || lag < minLag)) minLag = lag;
           onFix({
             lat: c.latitude,
             lon: c.longitude,
             t: pos.timestamp,
-            speed: Number.isFinite(c.speed) ? c.speed : null, // m/s
+            speed: Number.isFinite(c.speed) && c.speed >= 0 ? c.speed : null, // m/s (algunos dan −1 = desconocida)
             accuracy: c.accuracy,
             heading: c.heading,
           });

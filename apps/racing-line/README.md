@@ -27,6 +27,10 @@ ideal, mapa con zoom/paneo, velocidad, desviación e inclinación).
 - **Desviación**: segmento verde más cercano a cada punto rojo + distancia Haversine.
 - **Inclinación**: `DeviceOrientationEvent` (con permiso en iOS), cero calibrado al iniciar; orientativa.
 - **Simulador**: 80 km/h en curva lenta → vmax en recta, lean = atan(v²κ/g), errores de trazada y ruido GPS.
+- **Comparador**: vuelta elegida vs vuelta de referencia (violeta) y gráfica de delta de tiempo.
+- **Exportar / importar**: GPX, CSV y sesión JSON; un GPX importado se cronometra automáticamente.
+- **Robustez GPS**: descarta fixes duplicados, desordenados, imprecisos (> 30 m) o con saltos
+  imposibles; antirrebote de meta por distancia (150 m); tolera pérdidas de señal sobre meta/parciales.
 - **Persistencia**: `localStorage` (formato compacto, descarta sesiones antiguas si se llena).
 
 ## Estructura

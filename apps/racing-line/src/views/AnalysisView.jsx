@@ -4,6 +4,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import TrackMap from '../components/TrackMap.jsx';
 import TraceChart from '../components/TraceChart.jsx';
+import ExportImportPanel, { ImportButton } from '../components/ExportImportPanel.jsx';
+import { distanceTime, timeDelta } from '../telemetry/delta.js';
 import { getCircuit, getTrackModel } from '../data/circuits.js';
 import { analyzeLap } from '../telemetry/analysis.js';
 import { deleteSession, listSessions, unpackLap } from '../storage/sessions.js';
@@ -13,6 +15,8 @@ export default function AnalysisView({ sessionId, onSelectSession, onGoLive }) {
   const [sessions, setSessions] = useState(null);
   const [lapNo, setLapNo] = useState(null);
   const [hover, setHover] = useState(null);
+  const [refChoice, setRefChoice] = useState('auto'); // 'auto' | 'none' | 'best' | nº de vuelta
+  const [importStatus, setImportStatus] = useState(null);
 
   const refresh = () => listSessions().then(setSessions);
   useEffect(() => {
@@ -42,10 +46,30 @@ export default function AnalysisView({ sessionId, onSelectSession, onGoLive }) {
   useEffect(() => {
     setLapNo(best?.number ?? null);
     setHover(null);
+    setRefChoice('auto');
   }, [session?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const lap = laps.find((l) => l.number === lapNo) ?? best;
   const marker = lap && hover != null ? lap.stats.trace[hover] : null;
+
+  // Vuelta de referencia: por defecto la rápida si la elegida no lo es
+  const refKey = refChoice === 'auto' ? (lap && best && lap !== best ? 'best' : 'none') : refChoice;
+  const refCandidate = refKey === 'best' ? best : typeof refKey === 'number' ? laps.find((l) => l.number === refKey) : null;
+  const refLap = refCandidate && refCandidate !== lap ? refCandidate : null;
+  const refSelectValue = refLap ? String(refKey) : 'none';
+
+  // Delta alineado con lap.stats.trace (mismo índice → hover sincronizado)
+  const deltaTrace = useMemo(() => {
+    if (!lap || !refLap) return null;
+    const d = timeDelta(distanceTime(lap.stats), distanceTime(refLap.stats));
+    return lap.stats.trace.map((p, i) => ({ s: p.s, d: d[i] }));
+  }, [lap, refLap]);
+  const deltaRange = deltaTrace ? Math.max(0.5, ...deltaTrace.map((p) => Math.abs(p.d))) : 0.5;
+
+  const onImported = (s) => {
+    onSelectSession(s.id);
+    refresh();
+  };
 
   if (sessions === null) return <div className="p-6 text-zinc-500">Cargando…</div>;
 
@@ -58,6 +82,14 @@ export default function AnalysisView({ sessionId, onSelectSession, onGoLive }) {
         <button onClick={onGoLive} className="mt-5 rounded-xl bg-ideal px-5 py-3 font-bold text-black">
           Ir a Grabación
         </button>
+        <div className="mt-3 flex justify-center">
+          <ImportButton
+            onImported={onImported}
+            onStatus={setImportStatus}
+            className="flex min-h-[44px] items-center gap-1.5 rounded-xl border border-edge bg-panel px-4 text-sm text-zinc-200 hover:bg-white/[0.06]"
+          />
+        </div>
+        {importStatus && <p className={`mt-2 text-xs ${importStatus.ok ? 'text-ideal' : 'text-red-300'}`}>{importStatus.text}</p>}
       </div>
     );
 
@@ -149,6 +181,10 @@ export default function AnalysisView({ sessionId, onSelectSession, onGoLive }) {
           </table>
         </div>
 
+        {lap && model && (
+          <ExportImportPanel session={session} circuit={circuit} model={model} lap={lap} onImported={onImported} />
+        )}
+
         <button
           type="button"
           onClick={async () => {
@@ -157,7 +193,7 @@ export default function AnalysisView({ sessionId, onSelectSession, onGoLive }) {
             onSelectSession(null);
             refresh();
           }}
-          className="self-start text-xs text-zinc-500 underline-offset-2 hover:text-red-300 hover:underline"
+          className="min-h-[40px] self-start text-xs text-zinc-500 underline-offset-2 hover:text-red-300 hover:underline"
         >
           Borrar sesión
         </button>
@@ -174,10 +210,35 @@ export default function AnalysisView({ sessionId, onSelectSession, onGoLive }) {
             <Metric label="Desv. máx" value={lap.stats.maxDeviationM.toFixed(1)} unit="m" />
           </div>
 
+          <label className="flex items-center gap-2">
+            <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Comparar con</span>
+            <select
+              value={refSelectValue}
+              onChange={(e) => {
+                const v = e.target.value;
+                setRefChoice(v === 'none' || v === 'best' ? v : Number(v));
+              }}
+              className="min-h-[44px] min-w-0 flex-1 rounded-xl border border-edge bg-panel px-3 text-sm"
+            >
+              <option value="none">Ninguna</option>
+              {best && best !== lap && (
+                <option value="best">Vuelta rápida (V{best.number} · {formatLap(best.timeMs)})</option>
+              )}
+              {laps
+                .filter((l) => l !== lap && l !== best)
+                .map((l) => (
+                  <option key={l.number} value={l.number}>
+                    Vuelta {l.number} · {formatLap(l.timeMs)} ({formatDelta(l.timeMs - lap.timeMs)})
+                  </option>
+                ))}
+            </select>
+          </label>
+
           <div className="relative overflow-hidden rounded-2xl border border-edge">
             <TrackMap
               model={model}
               riderPoints={lap.stats.smooth}
+              refPoints={refLap ? refLap.stats.smooth : null}
               smooth={false}
               marker={marker}
               className="h-[52vh] min-h-[320px] bg-[#0c0c10]"
@@ -185,6 +246,12 @@ export default function AnalysisView({ sessionId, onSelectSession, onGoLive }) {
             <div className="pointer-events-none absolute left-3 top-3 flex flex-col gap-1 rounded-lg bg-black/60 px-2.5 py-2 text-[11px] backdrop-blur">
               <span className="flex items-center gap-2"><i className="h-0.5 w-5 rounded bg-ideal" /> Trazada ideal</span>
               <span className="flex items-center gap-2"><i className="h-0.5 w-5 rounded bg-rider" /> Vuelta {lap.number}</span>
+              {refLap && (
+                <span className="flex items-center gap-2">
+                  <i className="h-[2px] w-5 rounded bg-[#a78bfa]" /> Vuelta {refLap.number}
+                  {refLap === best ? ' (rápida)' : ''}
+                </span>
+              )}
             </div>
           </div>
           <p className="text-[11px] text-zinc-500">
@@ -193,6 +260,22 @@ export default function AnalysisView({ sessionId, onSelectSession, onGoLive }) {
           </p>
 
           <div className="grid gap-3 rounded-2xl border border-edge bg-panel p-3 xl:grid-cols-2">
+            {deltaTrace && (
+              <div className="xl:col-span-2">
+                <TraceChart
+                  trace={deltaTrace}
+                  value={deltaValue}
+                  title={`Delta vs vuelta ${refLap.number} (+ pierdes / − ganas)`}
+                  unit="s"
+                  color="#ef4444"
+                  symmetric
+                  minRange={deltaRange <= 0.5 ? 0.5 : Math.ceil(deltaRange * 2) / 2}
+                  format={formatSigned}
+                  hoverIndex={hover}
+                  onHover={setHover}
+                />
+              </div>
+            )}
             <TraceChart
               trace={lap.stats.trace}
               value={(d) => d.v * 3.6}
@@ -231,6 +314,9 @@ export default function AnalysisView({ sessionId, onSelectSession, onGoLive }) {
     </div>
   );
 }
+
+const deltaValue = (d) => d.d;
+const formatSigned = (v) => `${v > 0.004 ? '+' : v < -0.004 ? '−' : ''}${Math.abs(v).toFixed(2)}`;
 
 function Metric({ label, value, unit, accent = 'text-zinc-50' }) {
   return (

@@ -161,13 +161,20 @@ export function createSimulator(model, opts = {}) {
   };
 
   const totalS = lapLen * (laps + 1) + 150; // vuelta de salida + N vueltas + frenada
+  // pasos de 100 ms por tick (entero ≥ 1 aunque timeScale no lo sea)
+  const stepsPerTick = Math.max(1, Math.round(timeScale));
 
   return {
     kind: 'sim',
     /** Reloj virtual (ms) de la simulación. */
     now() {
       if (!timer) return t0 + simT;
-      return t0 + simT + Math.min(SIM_DT * 1000, (performance.now() - lastRealTick) * timeScale);
+      // Entre ticks se interpola hasta lo que avanzará el siguiente tick
+      // (timeScale pasos de SIM_DT); antes se limitaba a un solo paso y con
+      // ×4/×10 el cronómetro en pantalla avanzaba a saltos. Sigue siendo
+      // monótono: nunca supera el t del siguiente fix.
+      const span = SIM_DT * 1000 * stepsPerTick;
+      return t0 + simT + Math.max(0, Math.min(span, (performance.now() - lastRealTick) * timeScale));
     },
     start(onFix, onEnd) {
       t0 = Date.now();
@@ -176,7 +183,7 @@ export function createSimulator(model, opts = {}) {
       timer = setInterval(() => {
         lastRealTick = performance.now();
         // con timeScale > 1 avanzamos varios pasos de 100 ms por tick
-        for (let k = 0; k < timeScale; k++) {
+        for (let k = 0; k < stepsPerTick; k++) {
           const fix = step(SIM_DT);
           if (n++ % emitEvery === 0) onFix(fix);
           if (s >= totalS) {
