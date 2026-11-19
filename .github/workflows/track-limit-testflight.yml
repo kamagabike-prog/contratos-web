@@ -1,0 +1,121 @@
+# Compila la app iOS de Track Limit (Capacitor) y la sube a TestFlight.
+#
+# Secretos necesarios (Settings → Secrets and variables → Actions):
+#   APPLE_TEAM_ID   Team ID de Apple Developer (10 caracteres)
+#   ASC_KEY_ID      Key ID de la clave de API de App Store Connect
+#   ASC_ISSUER_ID   Issuer ID de esa clave
+#   ASC_KEY_P8      Contenido del archivo AuthKey_XXXX.p8 (texto tal cual)
+# La clave debe tener rol "Admin" para que Xcode gestione los certificados
+# y perfiles de firma automáticamente en la nube.
+
+name: Track Limit → TestFlight
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/track-limit/**'
+      - '.github/workflows/track-limit-testflight.yml'
+
+concurrency:
+  group: track-limit-testflight
+  cancel-in-progress: false
+
+jobs:
+  testflight:
+    runs-on: macos-15
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: apps/track-limit
+    env:
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+    steps:
+      - name: Comprobar secretos
+        id: secrets
+        working-directory: .
+        run: |
+          missing=""
+          for v in APPLE_TEAM_ID ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8; do
+            [ -z "${!v}" ] && missing="$missing $v"
+          done
+          if [ -n "$missing" ]; then
+            echo "::warning::Faltan secretos:$missing. Añádelos en Settings → Secrets and variables → Actions y vuelve a lanzar el workflow."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.secrets.outputs.ok == 'true'
+
+      - uses: actions/setup-node@v4
+        if: steps.secrets.outputs.ok == 'true'
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/track-limit/package-lock.json
+
+      - name: Seleccionar Xcode 16
+        if: steps.secrets.outputs.ok == 'true'
+        run: sudo xcode-select -s /Applications/Xcode_16.4.app || sudo xcode-select -s "$(ls -d /Applications/Xcode_16*.app | sort -V | tail -1)"
+
+      - name: Instalar, testear y compilar la web
+        if: steps.secrets.outputs.ok == 'true'
+        run: |
+          npm ci
+          npx vitest run
+          npm run build
+          npx cap sync ios
+
+      - name: Preparar clave de App Store Connect
+        if: steps.secrets.outputs.ok == 'true'
+        run: |
+          KEY="$RUNNER_TEMP/AuthKey_${ASC_KEY_ID}.p8"
+          if printf '%s' "$ASC_KEY_P8" | grep -q "BEGIN PRIVATE KEY"; then
+            printf '%s\n' "$ASC_KEY_P8" > "$KEY"
+          else
+            printf '%s' "$ASC_KEY_P8" | base64 --decode > "$KEY"
+          fi
+          echo "ASC_KEY_PATH=$KEY" >> "$GITHUB_ENV"
+          sed "s/__TEAM_ID__/${APPLE_TEAM_ID}/" ios/ci/ExportOptions.plist > "$RUNNER_TEMP/ExportOptions.plist"
+
+      - name: Archivar
+        if: steps.secrets.outputs.ok == 'true'
+        run: |
+          xcodebuild archive \
+            -workspace ios/App/App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CODE_SIGN_STYLE=Automatic \
+            CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_KEY_PATH" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+
+      - name: Exportar y subir a TestFlight
+        if: steps.secrets.outputs.ok == 'true'
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_KEY_PATH" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+          echo "### Build ${{ github.run_number }} subido a App Store Connect" >> "$GITHUB_STEP_SUMMARY"
+          echo "Aparecerá en TestFlight cuando Apple termine de procesarlo (5–30 min)." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Borrar la clave
+        if: always()
+        working-directory: .
+        run: rm -f "$RUNNER_TEMP"/AuthKey_*.p8
