@@ -1,0 +1,14 @@
+{
+  "name": "capacitor-nmea-socket",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Plugin de Capacitor (iOS) que recibe NMEA 0183 de un receptor GPS por WiFi (TCP o UDP)",
+  "license": "MIT",
+  "files": ["ios/", "CapacitorNmeaSocket.podspec"],
+  "capacitor": {
+    "ios": { "src": "ios" }
+  },
+  "peerDependencies": {
+    "@capacitor/core": "^6.0.0"
+  }
+}

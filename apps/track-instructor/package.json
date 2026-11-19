@@ -7,11 +7,13 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "gen:circuits": "node scripts/build-circuits.mjs"
+    "gen:circuits": "node scripts/build-circuits.mjs",
+    "nmea-sim": "node scripts/nmea-sim.mjs"
   },
   "license": "ISC",
   "dependencies": {
     "@capacitor/core": "^6.2.0",
+    "capacitor-nmea-socket": "file:plugins/nmea-socket",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },

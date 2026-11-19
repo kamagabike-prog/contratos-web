@@ -9,6 +9,14 @@ import { LapTimer } from '../telemetry/lapTimer.js';
 import { createSimulator } from '../telemetry/simulator.js';
 import { createGpsSource, isGeolocationAvailable, requestWakeLock } from '../telemetry/gpsSource.js';
 import { createLeanSensor, requestOrientationPermission } from '../telemetry/leanSensor.js';
+import {
+  createExternalGpsSource,
+  isExternalGpsAvailable,
+  loadExtConfig,
+  saveExtConfig,
+  setNativeKeepAwake,
+  validateExtConfig,
+} from '../telemetry/externalGpsSource.js';
 import { packLap, saveSession } from '../storage/sessions.js';
 import { formatDelta, formatLap } from '../utils/format.js';
 
@@ -16,7 +24,10 @@ const SIM_SPEEDS = [1, 4, 10];
 
 export default function LiveView({ circuit, onFinished }) {
   const model = getTrackModel(circuit);
-  const [mode, setMode] = useState('sim'); // 'sim' | 'gps'
+  const [mode, setMode] = useState('sim'); // 'sim' | 'gps' | 'ext'
+  const [extCfg, setExtCfg] = useState(loadExtConfig);
+  const [extStatus, setExtStatus] = useState(null);
+  const extAvailable = isExternalGpsAvailable();
   const [simSpeed, setSimSpeed] = useState(1);
   const [simLaps, setSimLaps] = useState(3);
   const [simHz, setSimHz] = useState(1);
@@ -60,6 +71,7 @@ export default function LiveView({ circuit, onFinished }) {
     leanRef.current?.stop();
     wakeRef.current?.release?.().catch(() => {});
     wakeRef.current = null;
+    setNativeKeepAwake(false);
     setRunning(false);
     const timer = timerRef.current;
     const src = sourceRef.current;
@@ -96,13 +108,25 @@ export default function LiveView({ circuit, onFinished }) {
       setError('Este dispositivo/navegador no ofrece geolocalización.');
       return;
     }
+    if (mode === 'ext') {
+      if (!extAvailable) {
+        setError('El GPS por WiFi solo funciona en la app de iPhone: los navegadores no pueden conectar con receptores TCP/UDP.');
+        return;
+      }
+      const msg = validateExtConfig(extCfg);
+      if (msg) {
+        setError(msg);
+        return;
+      }
+      saveExtConfig(extCfg);
+    }
     const timer = new LapTimer(model);
     let src;
     let lean = null;
     if (mode === 'sim') {
       src = createSimulator(model, { laps: simLaps, timeScale: simSpeed, vmaxKmh: circuit.vmaxKmh, rateHz: simHz });
     } else {
-      src = createGpsSource();
+      src = mode === 'ext' ? createExternalGpsSource(extCfg, { onStatus: setExtStatus }) : createGpsSource();
       // Permiso de orientación (iOS) dentro del gesto del usuario
       if (await requestOrientationPermission()) {
         lean = createLeanSensor();
@@ -116,6 +140,7 @@ export default function LiveView({ circuit, onFinished }) {
     fixCount.current = 0;
     startedAt.current = Date.now();
     wakeRef.current = await requestWakeLock();
+    setNativeKeepAwake(true);
     setRunning(true);
     src.start(
       (fix) => {
@@ -130,7 +155,7 @@ export default function LiveView({ circuit, onFinished }) {
         }
       },
       () => stopRef.current(),
-      (err) => setError(`GPS: ${err.message || 'error'}`)
+      (err) => setError(`${mode === 'ext' ? 'Receptor WiFi' : 'GPS'}: ${err.message || 'error'}`)
     );
     rafRef.current = requestAnimationFrame(loop);
   };
@@ -165,7 +190,13 @@ export default function LiveView({ circuit, onFinished }) {
           <span className="font-semibold text-zinc-300">{circuit.short}</span>
           <span className="flex items-center gap-2 font-mono">
             <span className={`h-2 w-2 rounded-full ${running ? (mode === 'sim' ? 'bg-amber-400' : 'bg-ideal') + ' animate-pulse' : 'bg-zinc-600'}`} />
-            {running ? (mode === 'sim' ? `SIM ${simHz} Hz ×${simSpeed}` : 'GPS') : 'EN ESPERA'}
+            {running
+              ? mode === 'sim'
+                ? `SIM ${simHz} Hz ×${simSpeed}`
+                : mode === 'ext'
+                ? extLabel(extStatus)
+                : 'GPS'
+              : 'EN ESPERA'}
             {running && view.acc != null && <span className="text-zinc-500">±{view.acc.toFixed(1)}m</span>}
           </span>
         </div>
@@ -240,10 +271,12 @@ export default function LiveView({ circuit, onFinished }) {
       <div className="border-t border-edge bg-panel px-4 pb-[calc(env(safe-area-inset-bottom)+5.5rem)] pt-3">
         {!running && (
           <div className="mb-3 space-y-2">
-            <div className="grid grid-cols-2 gap-2 rounded-xl bg-black/40 p-1">
-              <Seg active={mode === 'gps'} onClick={() => setMode('gps')}>GPS real</Seg>
+            <div className="grid grid-cols-3 gap-1.5 rounded-xl bg-black/40 p-1">
+              <Seg active={mode === 'gps'} onClick={() => setMode('gps')}>GPS móvil</Seg>
+              <Seg active={mode === 'ext'} onClick={() => setMode('ext')}>GPS WiFi</Seg>
               <Seg active={mode === 'sim'} onClick={() => setMode('sim')}>Simulador</Seg>
             </div>
+            {mode === 'ext' && <ExtGpsSettings cfg={extCfg} onChange={setExtCfg} available={extAvailable} />}
             {mode === 'sim' && (
               <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-zinc-400">
                 <label className="flex items-center gap-2">
@@ -276,10 +309,85 @@ export default function LiveView({ circuit, onFinished }) {
             running ? 'bg-rider text-white shadow-rider/20' : mode === 'sim' ? 'bg-amber-400 text-black' : 'bg-ideal text-black shadow-ideal/20'
           }`}
         >
-          {running ? '■ Detener' : mode === 'sim' ? '▶ Simular Tanda en Vivo' : '● Iniciar sesión'}
+          {running ? '■ Detener' : mode === 'sim' ? '▶ Simular Tanda en Vivo' : mode === 'ext' ? '● Conectar e iniciar' : '● Iniciar sesión'}
         </button>
-        {running && <p className="mt-2 text-center font-mono text-[10px] text-zinc-500">{view.fixes} fixes GPS</p>}
+        {running && (
+          <p className="mt-2 text-center font-mono text-[10px] text-zinc-500">
+            {view.fixes} fixes GPS
+            {mode === 'ext' && extStatus?.error ? ` · ${extStatus.error}` : ''}
+          </p>
+        )}
       </div>
+    </div>
+  );
+}
+
+const EXT_STATES = {
+  connecting: 'CONECTANDO…',
+  connected: 'CONECTADO · SIN DATOS',
+  listening: 'ESCUCHANDO UDP',
+  reconnecting: 'RECONECTANDO…',
+  error: 'SIN CONEXIÓN',
+  idle: 'WIFI',
+};
+
+/** Estado del receptor WiFi para la cabecera: "WIFI 10 Hz · 14 sat". */
+function extLabel(st) {
+  if (!st) return 'WIFI';
+  if (st.state === 'receiving') {
+    const stale = st.lastFixAt && Date.now() - st.lastFixAt > 2000;
+    if (stale) return 'WIFI · SIN DATOS';
+    return `WIFI ${Math.round(st.hz)} Hz${st.sats != null ? ` · ${st.sats} sat` : ''}`;
+  }
+  return EXT_STATES[st.state] ?? 'WIFI';
+}
+
+function ExtGpsSettings({ cfg, onChange, available }) {
+  const set = (patch) => onChange({ ...cfg, ...patch });
+  const input = 'h-11 rounded-lg border border-edge bg-panel2 px-3 font-mono text-sm text-zinc-100 focus:border-zinc-400 focus:outline-none';
+  return (
+    <div className="space-y-2 text-xs text-zinc-400">
+      {!available && (
+        <p className="rounded-lg bg-amber-400/10 px-3 py-2 text-amber-200">
+          Solo disponible en la app de iPhone: los navegadores no pueden conectar por TCP/UDP con un receptor GPS.
+        </p>
+      )}
+      <Chips label="Protocolo" options={['tcp', 'udp']} value={cfg.protocol} onChange={(v) => set({ protocol: v })} fmt={(v) => v.toUpperCase()} />
+      <div className="flex items-end gap-2">
+        {cfg.protocol === 'tcp' && (
+          <label className="flex min-w-0 flex-1 flex-col gap-1">
+            IP del receptor
+            <input
+              id="ext-host"
+              className={input}
+              inputMode="decimal"
+              autoComplete="off"
+              autoCapitalize="off"
+              spellCheck="false"
+              placeholder="192.168.4.1"
+              value={cfg.host}
+              onChange={(e) => set({ host: e.target.value })}
+            />
+          </label>
+        )}
+        <label className="flex w-24 flex-col gap-1">
+          Puerto
+          <input
+            id="ext-port"
+            className={input}
+            inputMode="numeric"
+            placeholder="10110"
+            value={cfg.port}
+            onChange={(e) => set({ port: e.target.value.replace(/\D/g, '').slice(0, 5) })}
+          />
+        </label>
+      </div>
+      <p className="text-zinc-500">
+        Conecta el iPhone a la WiFi del receptor. Recibe frases NMEA 0183 (RMC, GGA, GST, VTG) a cualquier frecuencia.
+        {cfg.protocol === 'tcp'
+          ? ' TCP: la app se conecta al receptor (puertos habituales 10110, 2000 o 23).'
+          : ' UDP: configura el receptor para enviar a la IP de este iPhone y al puerto indicado.'}
+      </p>
     </div>
   );
 }

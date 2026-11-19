@@ -24,6 +24,8 @@
 	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Track Instructor se conecta por WiFi a tu receptor GPS externo para recibir su posición en tiempo real.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Track Instructor usa el GPS para cronometrar tus vueltas y dibujar tu trazada en el circuito.</string>
 	<key>NSMotionUsageDescription</key>

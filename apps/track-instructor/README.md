@@ -65,6 +65,28 @@ ideal, mapa con zoom/paneo, velocidad, desviación e inclinación).
 La trazada ideal es una aproximación de mínima curvatura (exterior–ápice–exterior); no modela
 frenada tardía ni ápices retrasados específicos de moto.
 
+## GPS externo por WiFi
+
+En la app de iPhone, «2. Pista → GPS WiFi» recibe la posición de un receptor GPS externo que emita
+**NMEA 0183** por WiFi (pasarelas ESP32 + u-blox, receptores náuticos, data-loggers…):
+
+- **TCP** (lo habitual): la app se conecta a la IP y el puerto del receptor (p. ej. `192.168.4.1:10110`).
+- **UDP**: la app escucha en un puerto y el receptor envía a la IP del iPhone (unicast; recibir
+  broadcast en iOS requiere un permiso especial de Apple).
+- Frases: RMC (principal), GGA (satélites, HDOP), GST (error en metros), VTG. Cualquier talker
+  (GP, GN, GL…) y cualquier frecuencia (1–25 Hz). La hora de cada punto es la UTC del receptor, así
+  que la latencia de la WiFi no afecta al cronometraje.
+- Reconexión automática, pantalla siempre encendida durante la tanda y la inclinación se sigue
+  midiendo con el giroscopio del iPhone.
+
+Piezas: `src/telemetry/nmea.js` (lector NMEA), `src/telemetry/externalGpsSource.js` (fuente de datos)
+y el plugin nativo `plugins/nmea-socket/` (Swift, Network.framework). En el navegador esta opción no
+está disponible: los navegadores no pueden abrir conexiones TCP/UDP.
+
+**Probar sin receptor**: con el ordenador y el iPhone en la misma WiFi,
+`npm run nmea-sim -- --circuit jerez --hz 10` emite vueltas simuladas por TCP en el puerto 10110;
+conecta la app a la IP del ordenador. Con `--udp <ip del iPhone>` las envía por UDP.
+
 ## App iOS y TestFlight
 
 La app iOS envuelve la PWA con [Capacitor](https://capacitorjs.com) (`ios/`, bundle id
