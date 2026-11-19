@@ -1,0 +1,10 @@
+{
+  "appId": "com.kamagabike.trackinstructor",
+  "appName": "Track Instructor",
+  "webDir": "../../track-instructor",
+  "backgroundColor": "#09090b",
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#09090b"
+  }
+}

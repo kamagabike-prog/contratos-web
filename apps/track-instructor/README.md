@@ -1,9 +1,9 @@
-# Track Coach — telemetría de trazada para moto en circuito
+# Track Instructor — telemetría de trazada para moto en circuito
 
 PWA (React + Vite + Tailwind) para comparar tu trazada GPS (**rojo `#ef4444`**) con la
 trazada ideal (**verde `#22c55e`**) en circuitos de velocidad de España.
 
-Publicada en GitHub Pages en `/contratos-web/track-coach/` (el build se escribe en `../../track-coach`).
+Publicada en GitHub Pages en `/contratos-web/track-instructor/` (el build se escribe en `../../track-instructor`).
 
 ## Uso
 
@@ -11,7 +11,7 @@ Publicada en GitHub Pages en `/contratos-web/track-coach/` (el build se escribe 
 npm install
 npm run dev          # desarrollo (http://localhost:5173)
 npm test             # tests del motor (meta, simulador, métricas)
-npm run build        # genera ../../track-coach
+npm run build        # genera ../../track-instructor
 npm run gen:circuits # regenera src/data/trackGeometry.js
 ```
 
@@ -68,16 +68,16 @@ frenada tardía ni ápices retrasados específicos de moto.
 ## App iOS y TestFlight
 
 La app iOS envuelve la PWA con [Capacitor](https://capacitorjs.com) (`ios/`, bundle id
-`com.kamagabike.trackcoach`). El GPS usa `navigator.geolocation` dentro de la app y la
+`com.kamagabike.trackinstructor`). El GPS usa `navigator.geolocation` dentro de la app y la
 inclinación, el giroscopio (permisos en `ios/App/App/Info.plist`).
 
-El workflow `.github/workflows/track-coach-testflight.yml` compila en un Mac de GitHub Actions,
+El workflow `.github/workflows/track-instructor-testflight.yml` compila en un Mac de GitHub Actions,
 firma con firma automática en la nube y sube el build a TestFlight en cada push a `main` que toque
-`apps/track-coach/`, o a mano desde la pestaña Actions («Run workflow»).
+`apps/track-instructor/`, o a mano desde la pestaña Actions («Run workflow»).
 
 Configuración, una sola vez:
-1. En App Store Connect → Apps → «+» → Nueva app: plataforma iOS, nombre «Track Coach» (o el que
-   esté libre), bundle id `com.kamagabike.trackcoach` (regístralo antes en developer.apple.com →
+1. En App Store Connect → Apps → «+» → Nueva app: plataforma iOS, nombre «Track Instructor» (o el que
+   esté libre), bundle id `com.kamagabike.trackinstructor` (regístralo antes en developer.apple.com →
    Identifiers si no aparece) y un SKU cualquiera.
 2. En App Store Connect → Usuarios y acceso → Integraciones → Claves de API de App Store Connect:
    genera una clave con rol **Admin** y descarga el `.p8` (solo se puede descargar una vez).
