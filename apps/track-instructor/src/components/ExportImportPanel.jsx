@@ -1,5 +1,5 @@
 // Botones de exportación (GPX / CSV de la vuelta, JSON de la sesión) e
-// importación de sesiones (JSON / GPX).
+// importación de sesiones (GPX, NMEA, VBO, CSV o JSON).
 
 import React, { useRef, useState } from 'react';
 import {
@@ -10,12 +10,13 @@ import {
   lapToGPX,
   sessionToJSON,
 } from '../utils/exportImport.js';
+import { IMPORT_ACCEPT } from '../utils/importFormats.js';
 
 const btn =
   'flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl border border-edge bg-panel2 px-3 text-sm font-medium text-zinc-200 transition hover:bg-white/[0.06] active:bg-white/[0.1] disabled:opacity-40';
 
 /** Botón + input oculto para importar. Llama a onImported(session). */
-export function ImportButton({ onImported, onStatus, className = btn, label = 'Importar sesión (JSON/GPX)' }) {
+export function ImportButton({ onImported, onStatus, className = btn, label = 'Importar archivo (GPX, NMEA, VBO, CSV)' }) {
   const input = useRef(null);
   const [busy, setBusy] = useState(false);
   return (
@@ -26,7 +27,7 @@ export function ImportButton({ onImported, onStatus, className = btn, label = 'I
       <input
         ref={input}
         type="file"
-        accept=".json,.gpx,application/json,application/gpx+xml,application/xml,text/xml"
+        accept={IMPORT_ACCEPT}
         className="hidden"
         onChange={async (e) => {
           const file = e.target.files?.[0];
@@ -84,7 +85,7 @@ export default function ExportImportPanel({ session, circuit, model, lap, onImpo
           <ImportButton onImported={onImported} onStatus={setStatus} />
         </div>
       </div>
-      <p className="mt-2 text-[10px] leading-snug text-zinc-500">GPX y CSV de la vuelta {lap?.number} seleccionada. Un GPX importado se cronometra y se asigna al circuito más cercano.</p>
+      <p className="mt-2 text-[10px] leading-snug text-zinc-500">GPX y CSV de la vuelta {lap?.number} seleccionada. Un archivo importado (GPX, NMEA, VBO, CSV de RaceChrono…) se cronometra y se asigna al circuito más cercano.</p>
       {status && (
         <p role="status" className={`mt-1.5 text-xs ${status.ok ? 'text-ideal' : 'text-red-300'}`}>
           {status.text}

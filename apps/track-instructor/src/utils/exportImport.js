@@ -10,6 +10,8 @@ import { haversine } from '../geo/projection.js';
 import { LapTimer } from '../telemetry/lapTimer.js';
 import { packLap, saveSession } from '../storage/sessions.js';
 
+import { fixesFromText } from './importFormats.js';
+
 export const SESSION_FORMAT = 'racing-line-session';
 
 const xmlEscape = (s) =>
@@ -160,7 +162,7 @@ const newId = () => `${Date.now().toString(36)}-${Math.random().toString(36).sli
 
 /** Fixes → sesión (mismo formato que LiveView). Lanza error si no hay vueltas. */
 export function sessionFromFixes(fixes, { circuit = detectCircuit(fixes), model, source = 'gpx', name } = {}) {
-  if (!circuit) throw new Error('El GPX no corresponde a ningún circuito conocido (centro a más de 10 km)');
+  if (!circuit) throw new Error('Los datos no corresponden a ningún circuito conocido (centro a más de 10 km)');
   const m = model ?? getTrackModel(circuit);
   const timer = new LapTimer(m);
   for (const f of fixes) timer.push(f);
@@ -174,6 +176,8 @@ export function sessionFromFixes(fixes, { circuit = detectCircuit(fixes), model,
     source,
     gpsHz: medianDt ? Math.round((1000 / medianDt) * 10) / 10 : null,
     ...(name ? { name } : {}),
+    durationMs: Math.round(timer.movingMs),
+    distanceM: Math.round(timer.distanceM),
     laps: timer.laps.map(packLap),
   };
 }
@@ -227,14 +231,19 @@ export function sessionFromJSON(text) {
 
 // ------------------------------------------------------------------ navegador
 
-/** Lee un archivo .json / .gpx, crea la sesión y la guarda. Devuelve la sesión. */
+/**
+ * Texto de un archivo (GPX, NMEA, VBO, CSV o sesión JSON) → sesión, sin guardar.
+ * @param {string} name  nombre del archivo (para detectar el formato y nombrar la sesión)
+ */
+export function sessionFromText(name, text, { source } = {}) {
+  const { format, fixes } = fixesFromText(name, text);
+  if (format === 'json') return sessionFromJSON(text);
+  return sessionFromFixes(fixes, { name: name.replace(/\.[^.]+$/, ''), source: source ?? format });
+}
+
+/** Lee un archivo, crea la sesión y la guarda. Devuelve la sesión. */
 export async function importSessionFile(file) {
-  const text = await file.text();
-  const head = text.slice(0, 500).trimStart();
-  const isGpx = /\.gpx$/i.test(file.name) || head.startsWith('<');
-  const session = isGpx
-    ? sessionFromFixes(parseGPX(text), { name: file.name.replace(/\.[^.]+$/, '') })
-    : sessionFromJSON(text);
+  const session = sessionFromText(file.name, await file.text());
   await saveSession(session);
   return session;
 }

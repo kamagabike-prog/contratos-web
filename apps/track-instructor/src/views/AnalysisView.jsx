@@ -5,6 +5,9 @@ import React, { useEffect, useMemo, useState } from 'react';
 import TrackMap from '../components/TrackMap.jsx';
 import TraceChart from '../components/TraceChart.jsx';
 import ExportImportPanel, { ImportButton } from '../components/ExportImportPanel.jsx';
+import DeviceDownloadPanel from '../components/DeviceDownloadPanel.jsx';
+import UsagePanel from '../components/UsagePanel.jsx';
+import { formatDuration, sessionUsage } from '../storage/usage.js';
 import { distanceTime, timeDelta } from '../telemetry/delta.js';
 import { getCircuit, getTrackModel } from '../data/circuits.js';
 import { analyzeLap } from '../telemetry/analysis.js';
@@ -75,7 +78,7 @@ export default function AnalysisView({ sessionId, onSelectSession, onGoLive }) {
 
   if (!sessions.length)
     return (
-      <div className="mx-auto max-w-md px-6 pt-16 text-center">
+      <div className="mx-auto max-w-md px-6 pb-28 pt-16 text-center">
         <div className="text-4xl">🏁</div>
         <h2 className="mt-3 text-lg font-bold">Aún no hay sesiones</h2>
         <p className="mt-1 text-sm text-zinc-400">Graba una tanda en pista o usa el simulador para generar vueltas de prueba.</p>
@@ -90,6 +93,9 @@ export default function AnalysisView({ sessionId, onSelectSession, onGoLive }) {
           />
         </div>
         {importStatus && <p className={`mt-2 text-xs ${importStatus.ok ? 'text-ideal' : 'text-red-300'}`}>{importStatus.text}</p>}
+        <div className="mt-5">
+          <DeviceDownloadPanel onImported={onImported} />
+        </div>
       </div>
     );
 
@@ -108,7 +114,7 @@ export default function AnalysisView({ sessionId, onSelectSession, onGoLive }) {
               const c = getCircuit(s.circuitId);
               return (
                 <option key={s.id} value={s.id}>
-                  {c?.short ?? s.circuitId} · {formatDate(s.createdAt)} · {s.laps.length} v{s.source === 'sim' ? ' · SIM' : ''}
+                  {c?.short ?? s.circuitId} · {formatDate(s.createdAt)} · {s.laps.length} v · {formatDuration(sessionUsage(s).durationMs)}{s.source === 'sim' ? ' · SIM' : ''}
                 </option>
               );
             })}
@@ -184,6 +190,8 @@ export default function AnalysisView({ sessionId, onSelectSession, onGoLive }) {
         {lap && model && (
           <ExportImportPanel session={session} circuit={circuit} model={model} lap={lap} onImported={onImported} />
         )}
+        <DeviceDownloadPanel onImported={onImported} />
+        <UsagePanel sessions={sessions} />
 
         <button
           type="button"
