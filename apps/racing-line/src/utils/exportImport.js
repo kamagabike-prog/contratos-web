@@ -239,7 +239,31 @@ export async function importSessionFile(file) {
   return session;
 }
 
-export function downloadText(filename, text, mime = 'text/plain') {
+// Extensiones que acepta el sistema de descargas de un Artifact de claude.ai.
+const ARTIFACT_EXTS = ['txt', 'json', 'csv', 'md', 'html', 'zip'];
+
+/**
+ * Descarga un texto como archivo. Dentro de un Artifact de claude.ai (donde
+ * los enlaces <a download> no funcionan) usa la capacidad `downloads`; en la
+ * PWA normal, un enlace Blob temporal.
+ * @returns {Promise<boolean>} true si se entregó el archivo
+ */
+export async function downloadText(filename, text, mime = 'text/plain') {
+  const claude = typeof window !== 'undefined' ? window.claude : null;
+  if (claude?.use) {
+    try {
+      const downloads = await claude.use('downloads');
+      if (downloads) {
+        const ext = filename.split('.').pop().toLowerCase();
+        // .gpx no está permitido en Artifacts → se guarda como .gpx.txt
+        const name = ARTIFACT_EXTS.includes(ext) ? filename : `${filename}.txt`;
+        await downloads.save({ filename: name, data: text });
+        return true;
+      }
+    } catch {
+      return false; // el usuario canceló o la descarga no está disponible
+    }
+  }
   const blob = new Blob([text], { type: `${mime};charset=utf-8` });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -250,6 +274,7 @@ export function downloadText(filename, text, mime = 'text/plain') {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+  return true;
 }
 
 /** Nombre de archivo seguro: racing-jerez-2026-11-19-v3.gpx */
