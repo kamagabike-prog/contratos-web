@@ -7,6 +7,8 @@ import TraceChart from '../components/TraceChart.jsx';
 import ExportImportPanel, { ImportButton } from '../components/ExportImportPanel.jsx';
 import DeviceDownloadPanel from '../components/DeviceDownloadPanel.jsx';
 import UsagePanel from '../components/UsagePanel.jsx';
+import ReferenceLinePanel from '../components/ReferenceLinePanel.jsx';
+import { useReferenceLine } from '../components/useReferenceLine.js';
 import { formatDuration, sessionUsage } from '../storage/usage.js';
 import { distanceTime, timeDelta } from '../telemetry/delta.js';
 import { getCircuit, getTrackModel } from '../data/circuits.js';
@@ -20,6 +22,7 @@ export default function AnalysisView({ sessionId, onSelectSession, onGoLive }) {
   const [hover, setHover] = useState(null);
   const [refChoice, setRefChoice] = useState('auto'); // 'auto' | 'none' | 'best' | nº de vuelta
   const [importStatus, setImportStatus] = useState(null);
+  const [full, setFull] = useState(false); // análisis a pantalla completa
 
   const refresh = () => listSessions().then(setSessions);
   useEffect(() => {
@@ -29,14 +32,17 @@ export default function AnalysisView({ sessionId, onSelectSession, onGoLive }) {
   const session = sessions?.find((s) => s.id === sessionId) ?? sessions?.[0] ?? null;
   const circuit = session ? getCircuit(session.circuitId) : null;
   const model = circuit ? getTrackModel(circuit) : null;
+  // Línea verde: la trazada de referencia real del circuito si la hay; si no, la calculada
+  const reference = useReferenceLine(circuit?.id);
+  const idealLine = reference?.points ?? model?.racingLine;
 
   const laps = useMemo(() => {
     if (!session || !model) return [];
     return session.laps.map((l) => {
       const lap = unpackLap(l);
-      return { ...lap, stats: analyzeLap(lap.points, model.racingLine, model.proj) };
+      return { ...lap, stats: analyzeLap(lap.points, idealLine, model.proj) };
     });
-  }, [session, model]);
+  }, [session, model, idealLine]);
 
   const best = laps.reduce((b, l) => (!b || l.timeMs < b.timeMs ? l : b), null);
   const bestSectors = [0, 1, 2].map((i) => {
@@ -68,6 +74,33 @@ export default function AnalysisView({ sessionId, onSelectSession, onGoLive }) {
     return lap.stats.trace.map((p, i) => ({ s: p.s, d: d[i] }));
   }, [lap, refLap]);
   const deltaRange = deltaTrace ? Math.max(0.5, ...deltaTrace.map((p) => Math.abs(p.d))) : 0.5;
+
+  // Pantalla completa del sistema donde exista (Android, escritorio); en iPhone
+  // basta con la capa a pantalla completa. Esc o el gesto de salir la cierran.
+  useEffect(() => {
+    if (!full) return;
+    const fsSupported = !!document.documentElement.requestFullscreen && document.fullscreenEnabled;
+    const onKey = (e) => e.key === 'Escape' && setFull(false);
+    const onFs = () => !document.fullscreenElement && fsSupported && setFull(false);
+    window.addEventListener('keydown', onKey);
+    document.addEventListener('fullscreenchange', onFs);
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.removeEventListener('fullscreenchange', onFs);
+      document.body.style.overflow = '';
+      if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+    };
+  }, [full]);
+
+  const toggleFull = () => {
+    if (!full) {
+      // se pide dentro del propio toque: los navegadores lo exigen
+      const el = document.documentElement;
+      if (el.requestFullscreen && document.fullscreenEnabled && !document.fullscreenElement) el.requestFullscreen().catch(() => {});
+    }
+    setFull((f) => !f);
+  };
 
   const onImported = (s) => {
     onSelectSession(s.id);
@@ -207,9 +240,44 @@ export default function AnalysisView({ sessionId, onSelectSession, onGoLive }) {
         </button>
       </aside>
 
-      {/* Columna derecha: mapa + métricas */}
+      {/* Columna derecha: mapa + métricas (o pantalla completa) */}
       {lap && model && (
-        <section className="flex min-w-0 flex-1 flex-col gap-3">
+        <section
+          className={
+            full
+              ? 'fixed inset-0 z-50 flex flex-col gap-2 overflow-y-auto bg-[#09090b] px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-[calc(env(safe-area-inset-top)+0.5rem)]'
+              : 'flex min-w-0 flex-1 flex-col gap-3'
+          }
+          aria-label={full ? 'Análisis a pantalla completa' : undefined}
+        >
+          {full && (
+            <div className="order-[-2] flex items-center gap-2">
+              <div className="no-scrollbar flex min-w-0 flex-1 gap-1.5 overflow-x-auto">
+                {laps.map((l) => (
+                  <button
+                    key={l.number}
+                    type="button"
+                    onClick={() => {
+                      setLapNo(l.number);
+                      setHover(null);
+                    }}
+                    className={`min-h-[40px] shrink-0 rounded-lg border px-2.5 font-mono text-xs tabular ${
+                      l === lap ? 'border-rider/60 bg-rider/15 text-zinc-50' : 'border-edge bg-panel text-zinc-300'
+                    }`}
+                  >
+                    V{l.number} <span className={l === best ? 'text-violet-300' : ''}>{formatLap(l.timeMs)}</span>
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={toggleFull}
+                className="min-h-[40px] shrink-0 rounded-lg bg-zinc-100 px-3 text-sm font-bold text-black"
+              >
+                Salir
+              </button>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
             <Metric label="Tiempo" value={formatLap(lap.timeMs)} accent={lap === best ? 'text-violet-300' : undefined} />
             <Metric label="Vel. máx" value={`${Math.round(lap.stats.maxSpeedKmh)}`} unit="km/h" />
@@ -242,17 +310,28 @@ export default function AnalysisView({ sessionId, onSelectSession, onGoLive }) {
             </select>
           </label>
 
-          <div className="relative overflow-hidden rounded-2xl border border-edge">
+          <div className={`relative shrink-0 overflow-hidden rounded-2xl border border-edge ${full ? 'order-[-1]' : ''}`}>
             <TrackMap
               model={model}
               riderPoints={lap.stats.smooth}
               refPoints={refLap ? refLap.stats.smooth : null}
               smooth={false}
               marker={marker}
-              className="h-[52vh] min-h-[320px] bg-[#0c0c10]"
+              idealPoints={reference?.points}
+              className={full ? 'h-[calc(100dvh_-_5.5rem)] min-h-[320px] bg-[#0c0c10]' : 'h-[52vh] min-h-[320px] bg-[#0c0c10]'}
             />
+            <button
+              type="button"
+              onClick={toggleFull}
+              aria-label={full ? 'Salir de pantalla completa' : 'Ver el análisis a pantalla completa'}
+              title={full ? 'Salir de pantalla completa' : 'Pantalla completa'}
+              className="absolute bottom-2 right-2 flex min-h-[40px] items-center gap-1.5 rounded-lg border border-edge bg-black/70 px-3 text-xs font-semibold text-zinc-100 backdrop-blur hover:bg-black/90"
+            >
+              <span aria-hidden className="text-base leading-none">{full ? '⤡' : '⛶'}</span>
+              {full ? 'Salir' : 'Pantalla completa'}
+            </button>
             <div className="pointer-events-none absolute left-3 top-3 flex flex-col gap-1 rounded-lg bg-black/60 px-2.5 py-2 text-[11px] backdrop-blur">
-              <span className="flex items-center gap-2"><i className="h-0.5 w-5 rounded bg-ideal" /> Trazada ideal</span>
+              <span className="flex items-center gap-2"><i className="h-0.5 w-5 rounded bg-ideal" /> {reference ? `Referencia: ${reference.label}` : 'Trazada ideal (calculada)'}</span>
               <span className="flex items-center gap-2"><i className="h-0.5 w-5 rounded bg-rider" /> Vuelta {lap.number}</span>
               {refLap && (
                 <span className="flex items-center gap-2">
@@ -262,7 +341,8 @@ export default function AnalysisView({ sessionId, onSelectSession, onGoLive }) {
               )}
             </div>
           </div>
-          <p className="text-[11px] text-zinc-500">
+          {!full && <ReferenceLinePanel circuit={circuit} lap={lap} best={best} reference={reference} />}
+          <p className={full ? 'hidden' : 'text-[11px] text-zinc-500'}>
             Rueda / pellizco para zoom, arrastra para mover, doble clic para acercar una curva (frenada, ápice, salida). Desliza sobre las gráficas para
             situar el punto en el mapa. Trazada roja suavizada con Catmull-Rom; desviación medida con Haversine.
           </p>
@@ -296,7 +376,7 @@ export default function AnalysisView({ sessionId, onSelectSession, onGoLive }) {
             <TraceChart
               trace={lap.stats.trace}
               value={(d) => d.dev}
-              title="Desviación vs ideal (+izq/−dcha)"
+              title={reference ? 'Desviación vs referencia (+izq/−dcha)' : 'Desviación vs ideal (+izq/−dcha)'}
               unit="m"
               color="#ef4444"
               symmetric

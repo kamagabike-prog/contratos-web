@@ -39,6 +39,8 @@ export default function TrackMap({
   compact = false,
   overlay = null,
   refPoints = null, // vuelta de referencia (violeta #a78bfa), ya suavizada
+  lockCenter = false, // el marcador queda SIEMPRE en el centro (tanda en vivo)
+  idealPoints = null, // trazada de referencia real; si no hay, la calculada
 }) {
   const wrapRef = useRef(null);
   const [size, setSize] = useState({ w: 400, h: 300 });
@@ -47,7 +49,8 @@ export default function TrackMap({
   const pointers = useRef(new Map());
   const gesture = useRef(null);
 
-  useEffect(() => setFollowing(follow), [follow]);
+  useEffect(() => setFollowing(follow || lockCenter), [follow, lockCenter]);
+  const centered = lockCenter && !!marker;
 
   // Tamaño del contenedor
   useEffect(() => {
@@ -88,13 +91,13 @@ export default function TrackMap({
       center: toPath(model.center, true),
       left: toPath(model.leftEdge, true),
       right: toPath(model.rightEdge, true),
-      ideal: toPath(model.racingLine, true),
+      ideal: toPath(idealPoints || model.racingLine, true),
       kerbsIn: model.kerbs.map((k) => toPath(k.inner)).join(' '),
       kerbsOut: model.kerbs.map((k) => toPath(k.outer)).join(' '),
       finish: toPath(model.finish),
       sectors: model.sectorLines.slice(0, 2).map((l) => toPath(l)),
     }),
-    [model]
+    [model, idealPoints]
   );
   const riderPath = useMemo(
     () => toPath(smooth && riderPoints?.length > 2 ? smoothTrace(riderPoints) : riderPoints || []),
@@ -114,14 +117,15 @@ export default function TrackMap({
         const full = fitBox(model, aspect);
         const nw = Math.min(full.w * 1.5, Math.max(40, v.w * factor));
         const f = nw / v.w;
-        const px = clientX == null ? 0.5 : (clientX - r.left) / r.width;
-        const py = clientY == null ? 0.5 : (clientY - r.top) / r.height;
+        // con el piloto fijado en el centro, el zoom siempre es alrededor del centro
+        const px = clientX == null || centered ? 0.5 : (clientX - r.left) / r.width;
+        const py = clientY == null || centered ? 0.5 : (clientY - r.top) / r.height;
         const ax = v.x + v.w * px;
         const ay = v.y + v.h * py;
         return { x: ax - (ax - v.x) * f, y: ay - (ay - v.y) * f, w: v.w * f, h: v.h * f };
       });
     },
-    [model, aspect]
+    [model, aspect, centered]
   );
 
   useEffect(() => {
@@ -146,7 +150,9 @@ export default function TrackMap({
     const pts = pointers.current;
     const el = wrapRef.current;
     const r = el.getBoundingClientRect();
-    if (pts.size === 1) {
+    if (pts.size === 1 && centered) {
+      // piloto fijado en el centro: arrastrar no mueve el mapa
+    } else if (pts.size === 1) {
       const dx = e.clientX - prev.x;
       const dy = e.clientY - prev.y;
       if (Math.abs(dx) + Math.abs(dy) > 0) setFollowing(false);
@@ -281,8 +287,10 @@ export default function TrackMap({
         <div className="absolute right-2 top-2 flex flex-col gap-1.5">
           <MapBtn label="Acercar" onClick={() => zoomAt(0.6)}>+</MapBtn>
           <MapBtn label="Alejar" onClick={() => zoomAt(1.6)}>−</MapBtn>
-          <MapBtn label="Ver circuito completo" onClick={() => { setFollowing(false); fit(); }}>⤢</MapBtn>
-          {marker && (
+          {!centered && (
+            <MapBtn label="Ver circuito completo" onClick={() => { setFollowing(false); fit(); }}>⤢</MapBtn>
+          )}
+          {marker && !centered && (
             <MapBtn label="Seguir al piloto" active={following} onClick={() => setFollowing((f) => !f)}>◎</MapBtn>
           )}
         </div>

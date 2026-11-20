@@ -4,6 +4,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import TrackMap from '../components/TrackMap.jsx';
+import { useReferenceLine } from '../components/useReferenceLine.js';
 import { getTrackModel } from '../data/circuits.js';
 import { LapTimer } from '../telemetry/lapTimer.js';
 import { createSimulator } from '../telemetry/simulator.js';
@@ -24,6 +25,7 @@ const SIM_SPEEDS = [1, 4, 10];
 
 export default function LiveView({ circuit, onFinished }) {
   const model = getTrackModel(circuit);
+  const reference = useReferenceLine(circuit.id);
   const [mode, setMode] = useState('sim'); // 'sim' | 'gps' | 'ext'
   const [extCfg, setExtCfg] = useState(loadExtConfig);
   const [extStatus, setExtStatus] = useState(null);
@@ -40,6 +42,9 @@ export default function LiveView({ circuit, onFinished }) {
   const sourceRef = useRef(null);
   const leanRef = useRef(null);
   const lastFix = useRef(null);
+  // Para mover el punto suave entre fixes: fix anterior y momentos de llegada
+  const prevFix = useRef(null);
+  const arrivals = useRef({ prev: 0, last: 0 });
   const fixCount = useRef(0);
   const rafRef = useRef(0);
   const wakeRef = useRef(null);
@@ -51,12 +56,16 @@ export default function LiveView({ circuit, onFinished }) {
     const src = sourceRef.current;
     if (!timer || !src) return;
     const f = lastFix.current;
+    const marker = f ? smoothMarker(model, prevFix.current, f, arrivals.current) : null;
+    const pts = timer.lapStart === null ? timer.outLap : timer.current;
+    // el trazo rojo termina justo en el punto (que va un intervalo por detrás del último fix)
+    const trail = marker && pts.length > 1 ? [...pts.slice(0, -1), { ...pts[pts.length - 1], x: marker.x, y: marker.y }] : pts.slice();
     setView({
       elapsed: timer.elapsed(src.now()),
       laps: timer.laps,
       sectors: timer.currentSectors(),
-      trail: timer.lapStart === null ? timer.outLap.slice() : timer.current.slice(),
-      marker: f ? model.proj.toXY(f.lat, f.lon) : null,
+      trail,
+      marker,
       speed: f?.speed ?? null,
       lean: f?.lean ?? null,
       acc: f?.accuracy ?? null,
@@ -139,6 +148,7 @@ export default function LiveView({ circuit, onFinished }) {
     sourceRef.current = src;
     leanRef.current = lean;
     lastFix.current = null;
+    prevFix.current = null;
     fixCount.current = 0;
     startedAt.current = Date.now();
     wakeRef.current = await requestWakeLock();
@@ -148,7 +158,11 @@ export default function LiveView({ circuit, onFinished }) {
       (fix) => {
         if (leanRef.current) fix.lean = leanRef.current.value;
         fixCount.current++;
+        prevFix.current = lastFix.current;
         lastFix.current = fix;
+        const a = arrivals.current;
+        a.prev = a.last;
+        a.last = performance.now();
         const lap = timer.push(fix);
         if (lap) {
           setFlash(lap.number);
@@ -259,6 +273,8 @@ export default function LiveView({ circuit, onFinished }) {
         riderPoints={view.trail}
         marker={view.marker}
         follow={running}
+        lockCenter={running}
+        idealPoints={reference?.points}
         className="min-h-[180px] flex-1 bg-[#0c0c10]"
         overlay={
           flash && (
@@ -322,6 +338,21 @@ export default function LiveView({ circuit, onFinished }) {
       </div>
     </div>
   );
+}
+
+/**
+ * Posición del punto en pantalla: interpola del fix anterior al último durante
+ * el intervalo entre llegadas, para que el mapa (centrado en el punto) se
+ * deslice en lugar de saltar a 1 Hz. Va un intervalo por detrás del último fix.
+ */
+function smoothMarker(model, prev, last, arr) {
+  const b = model.proj.toXY(last.lat, last.lon);
+  if (!prev || !arr.prev) return b;
+  const interval = arr.last - arr.prev;
+  if (!(interval > 0) || interval > 3000) return b;
+  const a = model.proj.toXY(prev.lat, prev.lon);
+  const w = Math.min(1, (performance.now() - arr.last) / interval);
+  return { x: a.x + (b.x - a.x) * w, y: a.y + (b.y - a.y) * w };
 }
 
 const EXT_STATES = {

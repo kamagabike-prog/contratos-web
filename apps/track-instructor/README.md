@@ -87,6 +87,14 @@ está disponible: los navegadores no pueden abrir conexiones TCP/UDP.
 `npm run nmea-sim -- --circuit jerez --hz 10` emite vueltas simuladas por TCP en el puerto 10110;
 conecta la app a la IP del ordenador. Con `--udp <ip del iPhone>` las envía por UDP.
 
+## Trazada de referencia
+
+La línea verde es, por defecto, una trazada calculada por mínima curvatura (orientativa). No hay
+trazadas GPS de pilotos profesionales publicadas, así que en «3. Análisis → Trazada de referencia»
+puedes sustituirla, por circuito, por una vuelta real: una tuya, la vuelta rápida de la sesión o una
+importada (GPX, NMEA, VBO, CSV) de un instructor o un piloto más rápido. Se usa en el mapa, en vivo y
+para medir la desviación.
+
 ## Tiempo de uso
 
 «3. Análisis → Tiempo de uso» suma las horas en pista (solo en movimiento, a más de 10 km/h), las

@@ -160,3 +160,21 @@ describe('tiempo de uso', async () => {
     expect(formatKm(12345)).toBe('12,3 km');
   });
 });
+
+describe('trazada de referencia', async () => {
+  const { lapToReferenceLine } = await import('../storage/referenceLines.js');
+  const { unpackLap } = await import('../storage/sessions.js');
+  const { analyzeLap } = await import('../telemetry/analysis.js');
+  it('una vuelta real se convierte en línea cerrada y sirve para medir desviaciones', () => {
+    const s = sessionFromText('tanda.nmea', toNMEA(fixes));
+    const [a, b] = s.laps.map(unpackLap);
+    const line = lapToReferenceLine(a.points);
+    expect(line.length).toBeGreaterThan(circuit.lengthM / 5);
+    // misma vuelta contra sí misma: desviación casi nula; otra vuelta: pequeña
+    expect(analyzeLap(a.points, line, model.proj).avgDeviationM).toBeLessThan(0.3);
+    expect(analyzeLap(b.points, line, model.proj).avgDeviationM).toBeLessThan(4);
+  });
+  it('vuelta con pocos puntos → error claro', () => {
+    expect(() => lapToReferenceLine([{ x: 0, y: 0 }])).toThrow(/pocos puntos/);
+  });
+});
