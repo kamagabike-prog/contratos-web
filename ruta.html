@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex"><meta name="referrer" content="no-referrer"><title>Ir a la entrega</title>
+<style>
+body{font-family:system-ui,sans-serif;margin:0;padding:16px;background:#f4f4f5;color:#111}
+h1{font-size:20px;margin:0 0 4px}p{margin:6px 0}
+.tarjeta{background:#fff;border-radius:12px;padding:14px;margin:12px 0;white-space:pre-line}
+.btn{display:block;text-align:center;padding:18px 12px;margin:12px 0;border-radius:12px;font-size:18px;font-weight:600;text-decoration:none;color:#fff}
+.maps{background:#1a73e8}.wa{background:#25a244}.sms{background:#555}.mail{background:#7c3aed}
+.aviso{color:#b45309;font-weight:600}
+</style></head><body>
+<!-- Página estática: no carga la app ni pide la clave de acceso. Llama a la función «ruta» de Supabase. -->
+<h1 id="titulo">Ir a la entrega</h1>
+<div class="tarjeta" id="estado">Calculando tu llegada…</div>
+<div id="botones"></div>
+<div id="avisos"></div>
+<script>
+(function(){
+var API="https://ostmpamfdnvxbbapzwjv.supabase.co/functions/v1/ruta";
+var q0=new URLSearchParams(location.search);
+var c=q0.get("c")||"";
+var rec=q0.get("t")==="r"; // «r» = recogida: se compara con la hora de fin del contrato en lugar de la de entrega
+var est=document.getElementById("estado"),bot=document.getElementById("botones"),av=document.getElementById("avisos");
+var ios=/iPhone|iPad|iPod/i.test(navigator.userAgent);
+var FALLO=" Usa el botón de Google Maps.";
+var mapsUrl=null,ido=false;
+// Abre Google Maps con la ruta (una sola vez). Tras avisar al cliente, se abre al volver a esta página.
+function paso(t){var p=document.getElementById("paso");if(!p){p=document.createElement("p");p.id="paso";p.style.cssText="font-size:13px;color:#555;margin:8px 0";document.body.appendChild(p)}p.textContent=t}
+function irMaps(ms){if(!mapsUrl||ido)return;ido=true;paso("Abriendo Google Maps…");setTimeout(function(){location.href=mapsUrl},ms||600)}
+// Al volver de WhatsApp/SMS/email a esta página (por cualquier vía: visibilidad, foco o pageshow), se abre Google Maps.
+function alVolver(){
+ var salio=false;
+ function sale(){salio=true;paso("Aviso abierto. Al volver aquí se abrirá Google Maps.")}
+ function vuelve(){if(salio){paso("Has vuelto a la página.");irMaps(300)}}
+ document.addEventListener("visibilitychange",function(){if(document.visibilityState==="hidden")sale();else vuelve()});
+ window.addEventListener("pagehide",sale);
+ window.addEventListener("blur",sale);
+ window.addEventListener("focus",vuelve);
+ window.addEventListener("pageshow",function(){vuelve()});
+ // Si tras abrir el aviso la página no llega a ocultarse (el navegador la deja visible), se ofrece continuar a mano.
+ setTimeout(function(){if(!salio&&!ido)paso("Si ya has avisado, pulsa «Abrir Google Maps».")},5000)
+}
+// Abre la app de WhatsApp (whatsapp://) en lugar de la web wa.me: así esta página no se sustituye y, al volver, puede abrir Google Maps.
+function waApp(wa){var m=/^https:\/\/wa\.me\/(\d{8,15})\?text=(.*)$/.exec(wa);return m?"whatsapp://send?phone="+m[1]+"&text="+m[2]:wa}
+function txt(t){est.textContent=t}
+function seguro(h,p){return typeof h==="string"&&h.indexOf(p)===0}
+function enlace(dest,clase,etq,href){var a=document.createElement("a");a.className="btn "+clase;a.textContent=etq;a.href=href;dest.appendChild(a)}
+function hora(iso){return new Date(iso).toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit",timeZone:"Europe/Madrid"})}
+function llamar(cuerpo){return fetch(API,{method:"POST",cache:"no-store",headers:{"Content-Type":"application/json"},body:JSON.stringify(cuerpo)}).then(function(r){return r.json()})}
+if(!/^[A-Za-z0-9_-]{3,80}$/.test(c)){txt("Enlace no válido")}
+else llamar({accion:"datos",c:c,t:rec?"r":"e"}).then(function(d){
+ if(d.error){txt("No se pudo abrir la cita: "+d.error);return}
+ document.getElementById("titulo").textContent=(rec?"Recogida a ":"Entrega a ")+(d.nombre||"cliente");
+ if(seguro(d.maps,"https://www.google.com/maps/")){mapsUrl=d.maps;enlace(bot,"maps","Abrir Google Maps",d.maps)}
+ if(!navigator.geolocation){txt("Este navegador no da la ubicación."+FALLO);irMaps();return}
+ navigator.geolocation.getCurrentPosition(function(pos){
+  llamar({accion:"eta",c:c,t:rec?"r":"e",lat:pos.coords.latitude,lng:pos.coords.longitude}).then(function(e){
+   if(e.error){txt("No se pudo calcular la llegada."+FALLO);irMaps();return}
+   var t="Llegada estimada: "+hora(e.llegadaIso)+"\nHora de la cita: "+e.horaCita;
+   t+=e.retrasoMin>0?"\nRetraso: "+e.retrasoMin+" min":"\nLlegas a tiempo.";
+   txt(t);
+   if(!(e.retrasoMin>0))irMaps(); // a tiempo: se abre Google Maps directamente
+   if(e.retrasoMin>0){
+    if(!e.mensajes){var p=document.createElement("p");p.className="aviso";p.textContent="El contrato no tiene teléfono ni email";av.appendChild(p);irMaps(1500)}
+    else{
+     alVolver(); // tras avisar al cliente y volver a esta página, se abre Google Maps con la ruta
+     var wa=seguro(e.mensajes.whatsapp,"https://wa.me/")?e.mensajes.whatsapp:null;
+     var s=ios?e.mensajes.smsIos:e.mensajes.sms;
+     var em=seguro(e.mensajes.email,"mailto:")?e.mensajes.email:null;
+     if(wa)enlace(av,"wa","Avisar por WhatsApp",wa);
+     if(seguro(s,"sms:"))enlace(av,"sms","Avisar por SMS",s);
+     if(em)enlace(av,"mail","Avisar por email",em);
+     // Con teléfono se abre WhatsApp directamente, sin preguntar. Si el cliente no tiene teléfono, se elige entre los otros métodos.
+     if(wa){var q=document.createElement("p");q.textContent="Abriendo WhatsApp… Si el cliente no tiene WhatsApp, usa SMS o email.";av.appendChild(q);setTimeout(function(){location.href=waApp(wa)},600)}
+     else if(!seguro(s,"sms:")){var n=document.createElement("p");n.className="aviso";n.textContent="El cliente no tiene teléfono: avísale por email y vuelve aquí para abrir la ruta.";av.appendChild(n)}
+    }
+   }
+  }).catch(function(){txt("No se pudo calcular la llegada."+FALLO);irMaps()});
+ },function(){txt("No hay permiso de ubicación."+FALLO);irMaps()},{enableHighAccuracy:true,timeout:15000,maximumAge:30000});
+}).catch(function(){txt("No se pudo abrir la cita. Comprueba la conexión.")});
+})();
+</script></body></html>
