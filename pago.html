@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Kamaga Bike - Payment</title>
+<style>
+  :root { --bg:#f5f7fb; --fg:#111827; --mut:#6b7280; --card:#fff; --ok:#15803d; --ko:#b91c1c; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0f172a; --fg:#f3f4f6; --mut:#9ca3af; --card:#1e293b; --ok:#4ade80; --ko:#f87171; } }
+  body { margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center; background:var(--bg); color:var(--fg); font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
+  main { background:var(--card); border-radius:18px; padding:28px 24px; margin:16px; max-width:420px; text-align:center; box-shadow:0 4px 18px rgba(0,0,0,.08); }
+  h1 { font-size:22px; margin:8px 0; } p { color:var(--mut); line-height:1.5; margin:8px 0; }
+  .ic { font-size:44px; }
+</style>
+</head>
+<body>
+<main>
+  <div class="ic" id="ic"></div>
+  <h1 id="t"></h1>
+  <p id="d"></p>
+  <p id="d2"></p>
+</main>
+<script>
+  var ok = new URLSearchParams(location.search).get("r") !== "ko";
+  var es = (navigator.language || "en").toLowerCase().indexOf("es") === 0;
+  var T = {
+    ok: { en: ["Payment received", "Thank you! Your payment has been completed.", "We will confirm your booking by email."],
+          es: ["Pago recibido", "¡Gracias! Tu pago se ha completado.", "Te confirmaremos la reserva por correo."] },
+    ko: { en: ["Payment not completed", "The payment could not be completed. You have not been charged.", "Please try again with the same link or reply to our email."],
+          es: ["Pago no completado", "No se ha podido completar el pago. No se ha hecho ningún cargo.", "Inténtalo de nuevo con el mismo enlace o responde a nuestro correo."] }
+  };
+  var x = T[ok ? "ok" : "ko"][es ? "es" : "en"];
+  document.getElementById("ic").textContent = ok ? "✅" : "⚠️";
+  document.getElementById("t").textContent = x[0];
+  document.getElementById("d").textContent = x[1];
+  document.getElementById("d2").textContent = x[2];
+  document.title = "Kamaga Bike - " + x[0];
+</script>
+</body>
+</html>
